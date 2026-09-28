@@ -9,6 +9,11 @@
 #include <winhttp.h>
 
 #include <cstdio>
+#include <atomic>
+#include <algorithm>
+#include <thread>
+#include <mutex>
+#include <cwchar>
 #include <string>
 #include <vector>
 
@@ -189,41 +194,132 @@ bool download(const std::string& url, const std::string& filePath,
               const std::vector<std::string>& headers,
               const std::function<void(long long got, long long total)>& progress,
               std::string* err) {
-  std::string cur = url;
-  for (int hop = 0; hop < 8; ++hop) {
-    long st = doRequest(cur, L"GET", headers, "", nullptr, nullptr, err, nullptr);
-    if (st == 0) return false;
-    if (isRedirect(st)) {
-      std::wstring l2;
-      long st2 = doRequest(cur, L"GET", headers, "", nullptr, nullptr, err, &l2);
-      (void)st2;
-      if (!l2.empty()) { cur = tcu::wu8(l2); continue; }
+  // Probe with one byte: only an exact 206 response is safe to split.
+  // Each worker owns its WinHTTP request and file handle.
+  if (!sess()) { if (err) *err = "WinHttpOpen failed"; return false; }
+  UrlParts up;
+  if (!splitUrl(url, up, err)) return false;
+  const std::wstring tmp = tcu::u8w(filePath) + L".part";
+  std::atomic<long long> received{0};
+  std::mutex progressMutex;
+  auto fetch = [&](long long begin, long long end, long long expectedTotal,
+                   bool probe, std::string& failure) -> long long {
+    HINTERNET conn = WinHttpConnect(sess(), up.host.c_str(), up.port, 0);
+    if (!conn) { failure = errText(GetLastError()); return -1; }
+    HINTERNET req = WinHttpOpenRequest(conn, L"GET", up.path.c_str(), nullptr,
+        WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, up.https ? WINHTTP_FLAG_SECURE : 0);
+    if (!req) { failure = errText(GetLastError()); WinHttpCloseHandle(conn); return -1; }
+    std::vector<std::string> h = headers;
+    h.push_back("Accept-Encoding: identity");
+    if (begin >= 0) h.push_back(tcu::sf("Range: bytes=%lld-%lld", begin, end));
+    std::wstring hdr = joinHeaders(h);
+    if (!hdr.empty() && !WinHttpAddRequestHeaders(req, hdr.c_str(), (DWORD)hdr.size(), WINHTTP_ADDREQ_FLAG_ADD))
+      failure = errText(GetLastError());
+    if (failure.empty() && (!WinHttpSendRequest(req, WINHTTP_NO_ADDITIONAL_HEADERS, 0,
+          WINHTTP_NO_REQUEST_DATA, 0, 0, 0) || !WinHttpReceiveResponse(req, nullptr)))
+      failure = errText(GetLastError());
+    long long total = -1;
+    long long contentLength = -1;
+    HANDLE file = INVALID_HANDLE_VALUE;
+    if (failure.empty()) {
+      DWORD status = 0, len = sizeof(status);
+      if (!WinHttpQueryHeaders(req, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
+            WINHTTP_HEADER_NAME_BY_INDEX, &status, &len, WINHTTP_NO_HEADER_INDEX))
+        failure = errText(GetLastError());
+      else if (begin >= 0 && status == 206) {
+        wchar_t value[128] = {}; len = sizeof(value);
+        unsigned long long first = 0, last = 0, size = 0;
+        if (!WinHttpQueryHeaders(req, WINHTTP_QUERY_CONTENT_RANGE, WINHTTP_HEADER_NAME_BY_INDEX,
+              value, &len, WINHTTP_NO_HEADER_INDEX) ||
+            swscanf(value, L"bytes %llu-%llu/%llu", &first, &last, &size) != 3 ||
+            first != (unsigned long long)begin || last != (unsigned long long)end ||
+            size == 0 || (expectedTotal > 0 && size != (unsigned long long)expectedTotal))
+          failure = "invalid Content-Range";
+        else total = (long long)size;
+      } else if (begin >= 0 || status != 200) failure = tcu::sf("HTTP %lu", status);
+      if (failure.empty() && begin < 0) {
+        wchar_t value[64] = {}; len = sizeof(value);
+        if (WinHttpQueryHeaders(req, WINHTTP_QUERY_CONTENT_LENGTH, WINHTTP_HEADER_NAME_BY_INDEX,
+              value, &len, WINHTTP_NO_HEADER_INDEX)) {
+          wchar_t* tail = nullptr;
+          unsigned long long length = wcstoull(value, &tail, 10);
+          if (tail != value && *tail == 0 && length <= 0x7fffffffffffffffULL)
+            contentLength = (long long)length;
+        }
+      }
+      if (failure.empty() && !probe) {
+        file = CreateFileW(tmp.c_str(), GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                           nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+        LARGE_INTEGER offset; offset.QuadPart = begin < 0 ? 0 : begin;
+        if (file == INVALID_HANDLE_VALUE || !SetFilePointerEx(file, offset, nullptr, FILE_BEGIN))
+          failure = "cannot write output file";
+      }
+      long long count = 0;
+      char buffer[65536];
+      while (failure.empty()) {
+        DWORD n = 0;
+        if (!WinHttpReadData(req, buffer, sizeof(buffer), &n)) { failure = errText(GetLastError()); break; }
+        if (!n) break;
+        if (probe) { count += n; if (count > 1) failure = "range probe exceeded one byte"; continue; }
+        if (begin >= 0 && count + n > end - begin + 1) { failure = "range exceeded expected size"; break; }
+        DWORD written = 0;
+        if (!WriteFile(file, buffer, n, &written, nullptr) || written != n) {
+          failure = "cannot write output file"; break;
+        }
+        count += n;
+        long long current = received.fetch_add(n) + n;
+        if (progress) { std::lock_guard<std::mutex> lock(progressMutex); progress(current, expectedTotal); }
+      }
+      if (failure.empty() && begin >= 0 && count != end - begin + 1) failure = "incomplete range";
+      if (failure.empty() && begin < 0 && contentLength >= 0 && count != contentLength)
+        failure = "incomplete download";
     }
-    break;
-  }
-  DWORD retries = 3;
-restart:
-  HANDLE hFile = CreateFileW(tcu::u8w(filePath).c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS,
-                             FILE_ATTRIBUTE_NORMAL, nullptr);
-  if (hFile == INVALID_HANDLE_VALUE) { if (err) *err = "cannot create output file"; return false; }
-  long long got = 0;
-  auto sink = [&](const char* d, size_t n) -> bool {
-    DWORD w = 0;
-    BOOL ok = WriteFile(hFile, d, (DWORD)n, &w, nullptr);
-    if (ok) got += (long long)w;
+    if (file != INVALID_HANDLE_VALUE) CloseHandle(file);
+    WinHttpCloseHandle(req);
+    WinHttpCloseHandle(conn);
+    return failure.empty() ? total : -1;
+  };
+
+  std::string probeErr;
+  long long total = fetch(0, 0, -1, true, probeErr);
+  const bool parallel = total >= 8LL * 1024 * 1024;
+  auto prepare = [&](long long size) -> bool {
+    HANDLE f = CreateFileW(tmp.c_str(), GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                           nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (f == INVALID_HANDLE_VALUE) return false;
+    bool ok = true;
+    if (size > 0) {
+      LARGE_INTEGER pos; pos.QuadPart = size;
+      ok = SetFilePointerEx(f, pos, nullptr, FILE_BEGIN) && SetEndOfFile(f);
+    }
+    CloseHandle(f);
     return ok;
   };
-  long st = doRequest(cur, L"GET", headers, "", sink, nullptr, err, nullptr);
-  CloseHandle(hFile);
-  if (st == 0) return false;
-  if (isRedirect(st)) {
-    std::wstring l2; long st2 = doRequest(cur, L"GET", headers, "", nullptr, nullptr, err, &l2); (void)st2;
-    if (!l2.empty()) { cur = tcu::wu8(l2); if (--retries) goto restart; }
-    if (err) *err = "redirect chain too long";
-    return false;
+  if (!prepare(parallel ? total : 0)) { if (err) *err = "cannot create output file"; return false; }
+  bool ok = false;
+  if (parallel) {
+    std::string failures[4];
+    std::vector<std::thread> workers;
+    for (int i = 0; i < 4; ++i) workers.emplace_back([&, i] {
+      long long start = total * i / 4, stop = total * (i + 1) / 4 - 1;
+      fetch(start, stop, total, false, failures[i]);
+    });
+    for (auto& worker : workers) worker.join();
+    ok = received == total;
+    for (auto& f : failures) if (!f.empty()) { ok = false; if (err) *err = f; }
   }
-  if (progress) progress(got, 0);
-  return true;
+  if (!ok) {
+    received = 0;
+    if (!prepare(0)) { if (err) *err = "cannot create output file"; DeleteFileW(tmp.c_str()); return false; }
+    std::string failure;
+    fetch(-1, -1, 0, false, failure);
+    ok = failure.empty();
+    if (!ok && err) *err = failure;
+  }
+  if (ok) ok = MoveFileExW(tmp.c_str(), tcu::u8w(filePath).c_str(), MOVEFILE_REPLACE_EXISTING) != 0;
+  if (ok && err) err->clear();
+  if (!ok) { DeleteFileW(tmp.c_str()); if (err && err->empty()) *err = "cannot replace output file"; }
+  return ok;
 }
 
 bool postStream(const std::string& url, const std::vector<std::string>& headers,
