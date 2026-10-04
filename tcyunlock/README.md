@@ -76,12 +76,22 @@ Copy-Item TC-tools\tcyunlock\publish\tctool-unlock.exe TC-tools\tcyunlock\dist\ 
 >   除 `src/Program.cs` 外，交付中用到的源文件在该提交与当前工作树**完全一致**；
 >   `tcyunlock/src/Program.cs` 在 rc2 状态的 blob SHA256 =
 >   `B26E8D7E63AB97C788F9EABADDB4A3A803A76CA6DABFDC1E4C8BC51E0D3BFCEC`（67,274 字节，验证方独立测得过同值）。
-> - 当前工作树比该提交**多一个 rc3 hunk**（`git diff --stat 17047b4 fcca14d -- tcyunlock/src`
->   = 1 file changed / 50 insertions / 4 deletions）：`forget` 顺带删除过期导出的
->   `payload.txt`/`payload.png`（`--json` 增加 `exportsRemoved`），代码注释标注
->   `since v0.2.0-rc3 / deferred from rc2`。该 hunk 已提交在 **`fcca14d`**（HEAD），
->   但**不在**上面那份 rc2 二进制里，随**下一次构建（rc3）**生效——
->   "源码比 dist 新"是**有意为之**，不是漏构建。
+> - **两个提交之间的差距（务必按两个口径分别读，不要只看单个文件）**：
+>   - 全仓 `17047b4 → fcca14d` = **26 files changed, 1458 insertions(+), 206 deletions(-)**
+>     （含 Android 磁贴/Manifest、构建脚本、文档等——rc2→rc3 的**版本跨度不止一个补丁**）；
+>   - 其中与本次 Windows 端改动相关的 `tcyunlock/src` 部分 = **1 file changed / +50 / −4**，
+>     即 `src/Program.cs` 中 `forget` 顺带删除过期导出的 `payload.txt`/`payload.png`
+>     （`--json` 增加 `exportsRemoved`），代码注释标注 `since v0.2.0-rc3 / deferred from rc2`。
+>   - 该 hunk 由 **`fcca14d`** 引入（其后提交如 `b61df1c` 及当前 HEAD 均包含它），
+>     但**不在**上面那份 rc2 二进制里，随**下一次构建（rc3）**生效——
+>     "源码比 dist 新"是**有意为之**，不是漏构建。
+> - 两份 `src/Program.cs` 的**原始字节**身份（`git show <commit>:<path>` 取原始比特后算 SHA-256，
+>   不受 `core.autocrlf` 影响）：rc2 `17047b4` = 67,274 B /
+>   `B26E8D7E63AB97C788F9EABADDB4A3A803A76CA6DABFDC1E4C8BC51E0D3BFCEC`；
+>   引入 rc3 改动的 `fcca14d` = 69,277 B /
+>   `2C49CFC7921CA4430CBCEB444FF9A0BE9AE053D90523939FE73CA7DC7F3B6638`。
+>   对应的 git blob（SHA-1）分别是 `ca56295dd3a62c03008200da5cbe14f52824184d` 与
+>   `37b66366713fb6d99a80fac9afd7e74f83924001`（后者即 `git rev-parse fcca14d:tcyunlock/src/Program.cs`）。
 
 > **可复现性（实测结论，重要）**
 > - **该单文件产物不是"从提交即可位级复现"的**：单文件发布会把**构建路径**相关的数据打进 exe，
@@ -95,6 +105,13 @@ Copy-Item TC-tools\tcyunlock\publish\tctool-unlock.exe TC-tools\tcyunlock\dist\ 
 >   重新记录哈希并重新验证。
 > - 需要完全相同的字节时，唯一可靠做法是**复制那个已验证的文件并校验哈希**（例如
 >   安装程序打包前后各算一次 SHA256）。
+> - **残留未知项（如实记录，不要用猜测填补）**：最忠实的一次重建（rc2 源码按原始字节、规范
+>   项目/输出路径、清空 `obj`/`bin`、完整 `build`→`publish` 序列）得到 `41,483,513` 字节 /
+>   `3B05C22E…`，与冻结产物 `41,483,515` 字节 / `2BC9BB1C…` **仍差 2 字节，原因未确定**。
+>   已**排除**的原因：源码差异（按原始字节比对一致）、项目/输出路径差异（同为规范路径）、
+>   `obj`/`bin` 残留（已清空）、构建序列差异（与 `build.ps1` 相同）、以及
+>   **NuGet 运行时包变化**（缓存中只有 `8.0.31`，安装于 14:39，早于 14:50:55 的冻结构建，
+>   且此后无任何更新）。剩余差异的可能来源尚未找到。
 > - 上述所有实验都在临时目录/worktree 中进行，**没有改动 `dist\`**；实验后已清理临时工作树并恢复 `publish\`。
 
 ---
