@@ -39,29 +39,50 @@ class MainActivity : AppCompatActivity() {
 
     private val viewModel: UnlockViewModel by viewModels()
 
+    companion object {
+        /** 快捷磁贴/自动化入口：拉起 App 后直接发起解锁（仍必须通过指纹）。 */
+        const val EXTRA_UNLOCK = "com.tctools.unlock.extra.UNLOCK"
+
+        /** 由快捷磁贴发起（用于在 UI 上给出「已从控制中心发起」的提示）。 */
+        const val EXTRA_FROM_TILE = "com.tctools.unlock.extra.FROM_TILE"
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        handleIntent(intent)
 
-        // ---- debug 构建的自动化入口（供 Lead/verify 用 adb 跑全链路） ----
-        //   adb shell am start -n com.tctools.unlock/.MainActivity \
-        //       --es pairing_json '{"v":1,"p":"tcunlock",...}'   # 直接注入配对文本
-        //   adb shell am start -n com.tctools.unlock/.MainActivity --ez selftest true   # 跑回环自测并打 logcat
-        //   adb shell am start -n com.tctools.unlock/.MainActivity --ez unlock true     # 直接发起解锁（仍会弹指纹）
-        var autoUnlock = false
+        setContent {
+            TcUnlockApp(viewModel)
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleIntent(intent)
+    }
+
+    /** 统一处理入口意图：磁贴点击、adb 自动化、正常启动。 */
+    private fun handleIntent(intent: Intent?) {
+        if (intent == null) return
+
         if (BuildConfig.DEBUG) {
-            intent?.getStringExtra("pairing_json")?.takeIf { it.isNotBlank() }?.let { json ->
+            intent.getStringExtra("pairing_json")?.takeIf { it.isNotBlank() }?.let { json ->
                 val error = viewModel.pairFromText(json)
                 android.util.Log.i("TcAutomation", "pairing_json 注入结果: ${error ?: "OK"}")
             }
-            if (intent?.getBooleanExtra("selftest", false) == true) {
+            if (intent.getBooleanExtra("selftest", false)) {
                 viewModel.runSelfTest()
             }
-            autoUnlock = intent?.getBooleanExtra("unlock", false) == true
         }
 
-        setContent {
-            TcUnlockApp(viewModel, autoUnlockOnStart = autoUnlock)
+        val fromTile = intent.getBooleanExtra(EXTRA_FROM_TILE, false)
+        // --ez unlock true（adb 自动化）与磁贴的 EXTRA_UNLOCK 走同一条信号通道
+        val wantUnlock = intent.getBooleanExtra(EXTRA_UNLOCK, false) ||
+            (BuildConfig.DEBUG && intent.getBooleanExtra("unlock", false))
+        if (wantUnlock || fromTile) {
+            viewModel.requestUnlockSignal(fromTile = fromTile)
         }
     }
 }
@@ -74,8 +95,9 @@ private sealed interface Screen {
 }
 
 @Composable
-private fun TcUnlockApp(vm: UnlockViewModel, autoUnlockOnStart: Boolean = false) {
+private fun TcUnlockApp(vm: UnlockViewModel) {
     val state by vm.ui.collectAsStateWithLifecycle()
+    val unlockSignal by vm.unlockRequest.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var screen by remember { mutableStateOf<Screen>(Screen.Home) }
     var unlockAfterPermission by remember { mutableStateOf(false) }
@@ -192,9 +214,10 @@ private fun TcUnlockApp(vm: UnlockViewModel, autoUnlockOnStart: Boolean = false)
         state.selfTestReport?.lines()?.forEach { android.util.Log.i("TcSelfTest", it) }
     }
 
-    // ---- debug: --ez unlock true 直接发起一次解锁（指纹仍然必须通过） ----
-    LaunchedEffect(Unit) {
-        if (autoUnlockOnStart) {
+    // ---- 磁贴 / adb 入口：拉起 App 后自动发起解锁（指纹仍然必须通过） ----
+    LaunchedEffect(unlockSignal) {
+        if (unlockSignal > 0) {
+            screen = Screen.Home
             requestUnlock()
         }
     }

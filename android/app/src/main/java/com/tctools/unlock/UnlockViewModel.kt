@@ -15,6 +15,7 @@ import com.tctools.unlock.protocol.MiniJson
 import com.tctools.unlock.protocol.Provisioning
 import com.tctools.unlock.protocol.ProvisioningResult
 import com.tctools.unlock.protocol.TcProtocol
+import com.tctools.unlock.tile.UnlockTileState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -62,6 +63,13 @@ class UnlockViewModel(app: Application) : AndroidViewModel(app) {
     private val _ui = MutableStateFlow(UiState())
     val ui: StateFlow<UiState> = _ui.asStateFlow()
 
+    /**
+     * 解锁请求信号（磁贴点击 / adb `--ez unlock true` 都走这里）：
+     * 自增一次 = 请求发起一次解锁；UI 侧拿到非 0 值后调用 [startUnlock]（含权限检查）。
+     */
+    private val _unlockRequest = MutableStateFlow(0)
+    val unlockRequest: StateFlow<Int> = _unlockRequest.asStateFlow()
+
     /** 当前连接内的 challenge（NONCE），只在连接内有效。 */
     private var nonce: ByteArray? = null
     private var pendingUnlock = false
@@ -79,6 +87,9 @@ class UnlockViewModel(app: Application) : AndroidViewModel(app) {
                 lastResult = prefs.lastResult,
                 storageMode = store.storageMode,
             )
+        }
+        viewModelScope.launch {
+            _ui.collect { syncTileState(it) }
         }
         viewModelScope.launch {
             ble.status.collect { s ->
@@ -109,6 +120,14 @@ class UnlockViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---- 配对 --------------------------------------------------------------
 
+    /** 磁贴 / adb 入口：请求发起一次解锁（权限检查与蓝牙状态检查由 UI 完成）。 */
+    fun requestUnlockSignal(fromTile: Boolean = false) {
+        if (fromTile) {
+            banner("已从控制中心磁贴发起解锁", ok = true)
+        }
+        _unlockRequest.update { it + 1 }
+    }
+
     fun reloadPairing() {
         val p = store.load()
         _ui.update {
@@ -121,6 +140,9 @@ class UnlockViewModel(app: Application) : AndroidViewModel(app) {
                 storageMode = store.storageMode,
             )
         }
+        // 磁贴冷启动时要用的非机密状态（PSK 绝不落这里）
+        prefs.tilePaired = p != null
+        prefs.tileHostName = p?.hostName
     }
 
     /** 扫码 / 手动粘贴 配对文本（协议第 4.1 节）。返回错误信息，null 表示成功。 */
@@ -399,6 +421,33 @@ class UnlockViewModel(app: Application) : AndroidViewModel(app) {
 
     fun connectDevice(device: BluetoothDevice, name: String?) {
         ble.connect(device, name)
+    }
+
+    // ---- 快捷设置磁贴状态同步（v0.2.0-rc2） --------------------------------
+
+    /**
+     * 把当前状态映射成磁贴的四态文案：未配对 / 未连接 / 连接中 / 已就绪 / 解锁中 / 成功 / 失败。
+     * 磁贴与 App 同进程，[UnlockTileState] 是进程内单例；冷启动时它自己从 AppPrefs 恢复。
+     */
+    private fun syncTileState(s: UiState) {
+        val phase = when {
+            !s.hasPairing -> UnlockTileState.Phase.UNPAIRED
+            s.awaitingBiometric || s.busy -> UnlockTileState.Phase.UNLOCKING
+            s.phase == BlePhase.READY -> UnlockTileState.Phase.READY
+            s.phase == BlePhase.SCANNING ||
+                s.phase == BlePhase.CONNECTING ||
+                s.phase == BlePhase.DISCOVERING -> UnlockTileState.Phase.CONNECTING
+            s.banner != null && s.bannerIsError -> UnlockTileState.Phase.FAILED
+            s.banner != null -> UnlockTileState.Phase.SUCCESS
+            else -> UnlockTileState.Phase.IDLE
+        }
+        UnlockTileState.publish(
+            context = getApplication(),
+            paired = s.hasPairing,
+            hostName = s.hostName,
+            phase = phase,
+            detail = s.banner,
+        )
     }
 
     override fun onCleared() {

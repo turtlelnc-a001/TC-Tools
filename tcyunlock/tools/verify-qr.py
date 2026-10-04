@@ -50,7 +50,22 @@ except ImportError:  # pragma: no cover
     cv2 = None
 
 HERE = pathlib.Path(__file__).resolve().parent
-DEFAULT_EXE = HERE.parent / "bin" / "Release" / "net8.0-windows10.0.19041.0" / "tctool-unlock.exe"
+# Prefer the SELF-CONTAINED deliverable: it runs on a machine with no .NET
+# runtime registered, whereas bin\Release\...\tctool-unlock.exe needs
+# DOTNET_ROOT (or a system .NET 8 runtime) and otherwise fails with
+# "You must install .NET to run this application".
+SELF_CONTAINED_EXE = HERE.parent / "dist" / "tctool-unlock.exe"
+FRAMEWORK_DEPENDENT_EXE = HERE.parent / "bin" / "Release" / "net8.0-windows10.0.19041.0" / "tctool-unlock.exe"
+
+
+def default_exe() -> pathlib.Path:
+    for candidate in (SELF_CONTAINED_EXE, FRAMEWORK_DEPENDENT_EXE):
+        if candidate.exists():
+            return candidate
+    return SELF_CONTAINED_EXE
+
+
+DEFAULT_EXE = default_exe()
 EXTRACTOR = HERE / "qr-extract.py"
 
 CASES = [
@@ -85,7 +100,12 @@ def qrdump(exe, text, ecc, mask=None, png=None):
         cmd += ["--png", str(png)]
     proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")
     if proc.returncode != 0:
-        raise RuntimeError(f"qrdump failed ({proc.returncode}): {proc.stderr.strip()}")
+        detail = (proc.stderr or proc.stdout).strip()
+        hint = ""
+        if "hostfxr" in detail or "You must install .NET" in detail:
+            hint = ("\n  hint: that build is framework-dependent. Run build.ps1 to produce the "
+                    "self-contained dist\\tctool-unlock.exe, or set DOTNET_ROOT to a .NET 8 SDK.")
+        raise RuntimeError(f"qrdump failed ({proc.returncode}): {detail}{hint}")
     return json.loads(proc.stdout)
 
 

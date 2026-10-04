@@ -20,8 +20,11 @@ import sys
 
 import segno
 
-EXE = pathlib.Path(__file__).resolve().parents[1] / "bin" / "Release" / \
-    "net8.0-windows10.0.19041.0" / "tctool-unlock.exe"
+_HERE = pathlib.Path(__file__).resolve().parent
+# Prefer the self-contained deliverable (runs without a registered .NET runtime).
+EXE = _HERE.parent / "dist" / "tctool-unlock.exe"
+if not EXE.exists():
+    EXE = _HERE.parent / "bin" / "Release" / "net8.0-windows10.0.19041.0" / "tctool-unlock.exe"
 
 
 def build_function_map(size: int, version: int):

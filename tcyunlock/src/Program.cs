@@ -446,10 +446,56 @@ Exit codes: 0 success, 1 failure, 2 usage, 3 already running, 4 self-test failed
         store.ClearPairing();
         store.Save();
 
-        if (_jsonMode) WriteJsonLine(new { forgotten = true, hadPsk, paired = false, hostId = store.State.HostId });
-        else Console.WriteLine(hadPsk
-            ? $"pairing forgotten (PSK cleared). hostId {store.State.HostId} kept; run 'pair' to pair a new phone."
-            : "nothing to forget: this host was not paired.");
+        // since v0.2.0-rc3 / deferred from rc2:
+        // rc2 (the frozen binary, sha256 2BC9BB1C…) cleared the PSK but left the
+        // exported pairing payload behind, so an old payload.png/payload.txt kept
+        // showing a QR whose PSK was already dead. Those files carry no usable key
+        // material, so this was a UX issue, not a security one; it was deferred out
+        // of rc2 to avoid invalidating the verified rc2 artefacts.
+        var removedExports = new List<string>();
+        foreach (string exportPath in new[] { HostPaths.PayloadTxt, HostPaths.PayloadPng })
+        {
+            try
+            {
+                if (File.Exists(exportPath))
+                {
+                    File.Delete(exportPath);
+                    removedExports.Add(Path.GetFileName(exportPath));
+                }
+            }
+            catch (Exception ex)
+            {
+                // Deleting an export must never fail the forget itself.
+                Console.Error.WriteLine($"{ToolName}: could not delete {exportPath}: {ex.Message}");
+            }
+        }
+
+        if (_jsonMode)
+        {
+            WriteJsonLine(new
+            {
+                forgotten = true,
+                hadPsk,
+                paired = false,
+                hostId = store.State.HostId,
+                exportsRemoved = removedExports,
+                exportsRemovedCount = removedExports.Count,
+            });
+        }
+        else
+        {
+            Console.WriteLine(hadPsk
+                ? $"pairing forgotten (PSK cleared). hostId {store.State.HostId} kept; run 'pair' to pair a new phone."
+                : "nothing to forget: this host was not paired.");
+
+            // Accurate for rc3 (files ARE cleaned). The rc2 behaviour is called out
+            // explicitly because rc2 users are told to remove the files by hand.
+            Console.WriteLine(removedExports.Count > 0
+                ? $"also deleted the stale pairing exports: {string.Join(", ", removedExports)} " +
+                  "(rc2 and earlier did not do this - if you are on rc2, delete payload.txt/payload.png yourself)."
+                : "no exported pairing files (payload.txt/payload.png) were present to clean up " +
+                  "(rc2 and earlier never cleaned them; delete them by hand if you still have them).");
+        }
         return 0;
     }
 

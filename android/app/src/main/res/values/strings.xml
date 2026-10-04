@@ -2,4 +2,6 @@
 <resources>
     <string name="app_name">TC-Tools 解锁电脑</string>
     <string name="scan_prompt">对准电脑上的配对二维码</string>
+    <!-- 控制中心快捷磁贴的 label（磁贴中文名「解锁电脑」） -->
+    <string name="tile_label">解锁电脑</string>
 </resources>

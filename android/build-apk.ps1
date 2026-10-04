@@ -63,15 +63,31 @@ try {
     $apk = Join-Path $projectDir 'build\outputs\apk\debug\app-debug.apk'
     if (-not (Test-Path $apk)) { throw "未找到 APK：$apk" }
 
+    # 版本名从 build.gradle.kts 读取，避免脚本与版本号不一致
+    $gradleKts = Get-Content (Join-Path $projectDir 'build.gradle.kts') -Raw
+    $versionName = ([regex]::Match($gradleKts, 'versionName\s*=\s*"([^"]+)"')).Groups[1].Value
+    if (-not $versionName) { throw '未能从 app\build.gradle.kts 解析 versionName' }
+
     New-Item -ItemType Directory -Force -Path $distDir | Out-Null
-    $target = Join-Path $distDir 'TC-Tools-Unlock-0.1.0.apk'
+    $target = Join-Path $distDir "TC-Tools-Unlock-$versionName.apk"
     Copy-Item $apk $target -Force
 
+    # 清理 dist 里的旧版本 APK（用户要求只保留当前版本产物）
+    Get-ChildItem $distDir -Filter 'TC-Tools-Unlock-*.apk' -File |
+        Where-Object { $_.Name -ne (Split-Path -Leaf $target) } |
+        ForEach-Object {
+            Write-Host ("清理旧产物: {0}" -f $_.Name)
+            Remove-Item $_.FullName -Force
+        }
+
     $size = (Get-Item $target).Length
+    $sha = (Get-FileHash $target -Algorithm SHA256).Hash
     Write-Host ""
     Write-Host "=== 构建成功 ==="
+    Write-Host ("版本: {0}" -f $versionName)
     Write-Host ("APK: {0}" -f $target)
     Write-Host ("大小: {0:N0} 字节 ({1:N2} MB)" -f $size, ($size / 1MB))
+    Write-Host ("SHA256: {0}" -f $sha)
     Write-Host "安装: adb install -r `"$target`""
 } finally {
     Pop-Location

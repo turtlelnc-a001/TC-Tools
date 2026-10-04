@@ -62,6 +62,18 @@ Copy-Item TC-tools\tcyunlock\publish\tctool-unlock.exe TC-tools\tcyunlock\dist\ 
 - `System.Security.Cryptography.ProtectedData` 8.0.0（DPAPI，.NET 8 共享框架里没有）
 - WinRT 蓝牙投影来自 `Microsoft.Windows.SDK.NET`（由 TFM 自动引入，无需手工引用）
 
+### 1.4 当前版本状态（源码与交付产物**故意不同步**，请勿误判）
+
+> - `dist\tctool-unlock.exe` = **已冻结的 v0.2.0-rc2 产物**：41,483,515 字节，
+>   SHA256 `2BC9BB1C78398BD2F09F551E11FC15C9D0712373A6F2A1AF9C9D652DB64FF392`。
+>   它是验收与安装包所使用的**唯一**二进制，**禁止**在未通知验证方的情况下替换。
+> - `src/` 中包含**一项 rc3 的最小改动**：`forget` 顺带删除过期导出的 `payload.txt`/`payload.png`
+>   （含 `--json` 的 `exportsRemoved` 字段），代码注释标注为
+>   `since v0.2.0-rc3 / deferred from rc2`。
+> - 该改动**不在**上面那份 rc2 二进制里（rc2 保留原行为以免作废已验证哈希），
+>   随**下一次构建（rc3）**生效。因此"源码比 dist 新"是**有意为之**，不是漏构建；
+>   任何需要与冻结哈希对应的复核，请以 `dist\` 为准并对照本节。
+
 ---
 
 ## 2. CLI 命令参考
@@ -73,7 +85,8 @@ tctool-unlock pair --show [--json]
 tctool-unlock pair --payload <json> [--json]
 tctool-unlock forget [--json]
 tctool-unlock set-password [--clear] [--json]
-tctool-unlock run [--duration N] [--json] [--enable-radio]
+tctool-unlock run [--duration N] [--json] [--enable-radio] [--quiet]
+tctool-unlock autostart status|enable|disable [--json] [--method auto|task|startup|runkey] [--exe <path>]
 tctool-unlock selftest [--json] [--out <path>]
 tctool-unlock qrdump --text <payload> [--ecc L|M|Q|H] [--mask 0..7] [--png <path>] [--json]
 tctool-unlock version [--json]
@@ -91,10 +104,13 @@ tctool-unlock version [--json]
 ```json
 {"paired":true,"advertising":true,"passwordSet":true,"hostId":"…","hostName":"LAPTOP-9KC7VPLA",
  "peerName":"","pskValid":true,"running":false,"injectWhenUnlocked":false,
- "hostJson":"C:\\Users\\…\\host.json","advertisingDetail":"advertising (Started)","version":"1.0.0"}
+ "hostJson":"C:\\Users\\…\\host.json","advertisingDetail":"advertising (Started)",
+ "version":"0.2.0-rc2","appVersion":"0.2.0-rc2","protocol":1}
 ```
 
 `peerName` 缺失时输出空串（不是 `null`），便于 C++ 侧按字符串解析。
+`appVersion`（应用版本，如 `0.2.0-rc2`）与 `protocol`（线协议版本，恒为 `1`）是**两个独立字段**，
+版本号升级不会改变协议号；旧字段 `version`/`protocolVersion` 为兼容保留。
 
 ### 2.2 `status`
 
@@ -122,7 +138,17 @@ tctool-unlock version [--json]
 `pair --payload <json>`：反向导入手机端产生的载荷（`id`→`peerId`，`name`→`peerName`；
 若带 `psk` 则同时采用该 PSK）。可选功能，用于"手机先配对"的流程。
 
-### 2.4 `set-password`
+### 2.4 `forget`
+
+清除配对（删掉 `host.json` 里的 PSK 密文与 peer 信息），保留 `hostId`。
+幂等：本来就没配对时也返回成功。
+
+**rc2 已知问题（UX，无安全影响）**：rc2 **不**删除先前导出的 `payload.txt`/`payload.png`，
+而其中的 PSK 已作废，所以扫旧码会认证失败。**rc3 起 `forget` 会自动删除这两个导出文件**
+（`--json` 增加 `exportsRemoved` / `exportsRemovedCount` 字段），并在输出里说明。
+详见 §1.4 的版本状态说明与 §12 故障排查。
+
+### 2.5 `set-password`
 
 交互式录入，**不回显**（`Console.ReadKey(intercept: true)`），要求二次确认。
 若 stdin 被重定向则退化为按行读取并**明确警告无法隐藏**。
@@ -131,15 +157,24 @@ tctool-unlock version [--json]
 （中文、emoji、需要 AltGr 的符号等）会**明确警告**，因为解锁时只能整体中止并返回
 `unsupported`（见 §6）。`--clear` 清除已保存密码。
 
-### 2.5 `run`
+### 2.6 `run` / `run --quiet`
 
 前台常驻启动 GATT 服务，直到 Ctrl+C 或 `--duration N` 秒后退出。
 启动成功后写运行时心跳 `runtime.json`（`pid`/`advertising`/`peerConnected`/`connections`/`unlocks`），
 每 500 ms 刷新；退出时删除。检测到已有存活实例时拒绝启动（退出码 3）。
 
-### 2.6 `selftest`
+**`--quiet` 是给自启动用的模式**（详见 §13）：完全没有控制台输出（并主动隐藏自己的控制台窗口），
+关键日志写 `%LOCALAPPDATA%\TC-tools\unlock\service.log`，超过 1 MB 时滚动为 `service.log.1`。
+启动失败也会写日志（`[fatal]`）并非 0 退出，便于排查"开机没起来"。
 
-**不需要蓝牙**，进程内跑协议 §8 权威向量与安全断言，失败返回 4。
+### 2.7 `autostart`
+
+自启动开关，**默认关闭**，**用户级**（不需要管理员），`enable`/`disable` 都幂等，
+`status` 真实探测系统状态。用法/选型理由/限制见 §13。
+
+### 2.8 `selftest`
+
+**不需要蓝牙**，进程内跑协议 §8 权威向量与安全断言（当前 29 条），失败返回 4。
 `--json --out <path>` 输出单行 ASCII JSON 供交叉核对（本机产物示例见 §9.2）。
 
 ---
@@ -332,10 +367,10 @@ tctool-unlock version [--json]
 {"paired":false,"advertising":true,"passwordSet":false,"hostId":"adefc231-6aad-48a0-bd28-fe91588dcd9a",
  "hostName":"LAPTOP-9KC7VPLA","peerName":"","pskValid":false,"running":false,"injectWhenUnlocked":false,
  "hostJson":"C:\\Users\\\u5434\u6865\u751F\\AppData\\Local\\TC-tools\\unlock\\host.json",
- "advertisingDetail":"advertising (Started)","version":"1.0.0"}
+ "advertisingDetail":"advertising (Started)","version":"0.2.0-rc2","appVersion":"0.2.0-rc2","protocol":1}
 ```
 
-### 9.2 `selftest`（24/24，含 §8 权威向量）
+### 9.2 `selftest`（29/29，含 §8 权威向量）
 
 ```
 K_session      = 21f2a1a3890968e1da28553de67b49cab6ab2ffb7f3ecbaec72d284852b9af47
@@ -346,7 +381,7 @@ SEAL plaintext = {"type":"unlock"} (counter=1)
   ciphertext   = 678def935e80e0eeb8ca5a9ee9bbef97f6
   tag (16B)    = a2c4302b392deeb76b81f496665496c6
   FRAME(45B)   = 000000000000000100000000678def935e80e0eeb8ca5a9ee9bbef97f6a2c4302b392deeb76b81f496665496c6
-24/24 checks passed
+29/29 checks passed
 ```
 
 这些期望值是**硬编码在 selftest 里的断言**（来自第三方独立实现
@@ -355,15 +390,27 @@ SEAL plaintext = {"type":"unlock"} (counter=1)
 覆盖：§8 向量逐字节比对、base64url、SEAL/OPEN 往返、多块明文、counter 重放拒绝、
 篡改 tag/密文拒绝、非零 IV 填充拒绝、短帧拒绝、错误密钥拒绝、常量时间比较、
 UUID 常量、§6/§3.3.2 错误码与 reason 全集、ready 与超长 error 的 180 字节 Notify 预算、
-二维码编码与 PNG 生成。
+二维码编码与 PNG 生成，以及**从 BLE 传输层解耦出来的四条策略断言**（这样它们不需要手机就能回归）：
+`§5.5` 滑动窗口限流边界、`§3.3.1` 只有第 5 次连续 PROOF 失败才失效 PSK、
+`§5.4` 注入前判定矩阵（no-password / not-locked / injectWhenUnlocked）、
+`§5.3` 不可键入字符必须整体中止（0 次按键）且 ASCII 密码按键数 = 长度+1。
+后四条与宿主**共用同一份 `UnlockPolicy` / `InputInjector` 代码**，不是平行实现。
+
+> **口径说明（与 verify 报告一致，请勿升级为"运行时已验证"）**：这四条断言证明的是
+> **判定函数本身**正确（§5.5 窗口边界、§3.3.1 第 5 次才失效、§5.4 判定矩阵、§5.3 零按键中止）。
+> "真实 GATT 会话中服务器确实调用了这些函数、并在收到手机帧时按此分支"仍属
+> **静态审查 + 待真机**——需要一台装了安卓端 App 的手机才能闭环（见 §9.4、§10）。
 
 ### 9.3 独立交叉核对
 
 - `node tests/unlock/ref-vectors.mjs --compare dist/selftest-vectors.json` → **6/6 MATCH, allMatch=true, exit 0**
 - verify 用另一个宿主直接编译 `src/Protocol.cs` 跑 §8 → **6/6 逐字节 MATCH**
-- verify 复核 Host/BLE 部分 → `24/24 checks passed, exit 0`，静态审查逐条通过
+- verify 复核 Host/BLE 部分 → selftest 全过（verify 复核时为 25 条；F1 修复后新增策略断言，当前 29 条），
+  静态审查逐条通过
   （见 [`tests/unlock/verify-report.md`](../tests/unlock/verify-report.md)）
-- 二维码：`tools/verify-qr.py` —
+- 二维码：`tools/verify-qr.py` —— **由 verify 独立执行并给出 `RESULT: ALL VERIFIED, exit 0`**
+  （命令与参考实现由本目录提供，解码器为第三方 OpenCV；本次修复后默认使用自包含
+  `dist\tctool-unlock.exe`，**无需 DOTNET_ROOT 即可复现**）：
   **Part A**：`qrdump --png` 产出的 PNG 用 OpenCV 独立解码，5/5 载荷**逐字节还原**
   （含中文名、版本 8/9、需要填充的场景）；
   **Part B**：与第三方编码器 `segno` 逐 mask 比对码字流，40/40 在**消息区完全一致**，
@@ -398,11 +445,23 @@ UUID 常量、§6/§3.3.2 错误码与 reason 全集、ready 与超长 error 的
 
 1. Windows 10 1709（16299）真机运行 —— 本机是 Win11 26200；minOS 只证明 API 元数据允许，
    不代表 1709 上的一切行为（例如某些版本的 Windows 对非打包 Win32 进程使用 BLE 广播有额外限制）。
-2. 与真实安卓手机/App 的端到端互通（见 §9.4）。
+2. 与真实安卓手机/App 的端到端互通（见 §9.4）。此项**同时**覆盖：§3.3.1/§5.3/§5.4/§5.5 的
+   **实时接线**——判定函数已被 selftest 覆盖（见 §9.2 口径说明），但"服务器在真实会话里
+   按这些分支处理手机帧"只能在有手机时确认。
 3. 安全桌面（锁屏）注入与服务化（见 §7）。
 4. 长写分片重组：逻辑已实现（按 `Offset` 累积 + 120 ms 收尾判定），但**没有真实手机**
    制造 >MTU 的 Prepare/Execute 长写来实测。
 5. `pair --payload` 反向导入（协议标注为可选实现）。
+6. **自启动的"计划任务"与"HKCU Run"两条路径未能在本机稳定复现成功**（环境限制，非代码缺陷）：
+   - `schtasks /create` 以标准用户身份被系统拒绝（`ERROR: Access is denied.`），
+     用 `schtasks.exe` 直接手敲同样报错，与我们的代码无关；
+   - `HKCU\…\Run` 的写入在本会话中**间歇性**被拒（`UnauthorizedAccessException`），
+     同一数值有时成功有时失败，而 `reg.exe` 手写与 PowerShell 直写同样受影响，
+     说明是本机安全策略/安全软件的拦截，而不是 .NET API 用法问题。
+   - 因此本机实测走的是**启动文件夹快捷方式**回退路径（见 §13.6），该路径完整验证通过；
+     另两条路径的代码已实现，并对失败做了探测与明确报错。
+   - **未验证**：真实重启/登录后自启动是否按时拉起（本机不便重启），以及计划任务在
+     具备权限的系统上是否成功。
 
 ---
 
@@ -416,9 +475,11 @@ tcyunlock/
 ├─ src/
 │  ├─ Program.cs            CLI 命令与 --json 契约、selftest
 │  ├─ Protocol.cs           §2/§2.1 字节级原语、错误码、reason 常量
+│  ├─ UnlockPolicy.cs       限流/失败计数/注入前判定（纯函数，selftest 直接复用）
+│  ├─ Autostart.cs          用户级自启动（计划任务/启动文件夹/HKCU Run）+ service.log 滚动
 │  ├─ HostStore.cs          host.json / DPAPI / runtime.json 心跳
 │  ├─ Ble/GattUnlockServer.cs  GATT Server、会话状态机、帧重组、解锁分派
-│  ├─ Win/Native.cs         P/Invoke（SendInput / OpenInputDesktop / VkKeyScanW）
+│  ├─ Win/Native.cs         P/Invoke（SendInput / OpenInputDesktop / VkKeyScanW / 隐藏控制台）
 │  ├─ Win/InputInjector.cs  字符预检与键盘注入
 │  └─ Qr/QrCode.cs          无依赖二维码编码器（字节模式，版本 1–10）+ ASCII/PNG 渲染
 ├─ tools/
@@ -444,3 +505,123 @@ tcyunlock/
 | 解锁返回 `no-password` | 还没 `set-password`。 |
 | 锁屏下注入了但没解锁 | 见 §7：安全桌面注入需要 SYSTEM/用户会话内的进程，普通进程会被 UIPI 拦截。 |
 | `You must install .NET … hostfxr.dll` | 你运行的是框架依赖版。用 `dist\tctool-unlock.exe`（自包含），或设置 `DOTNET_ROOT`。 |
+| `autostart enable` 报 `schtasks /create failed: Access is denied` | 标准用户在该系统上无权创建计划任务（很常见）。auto 模式会自动退回启动文件夹快捷方式；见 §13。 |
+| 开机后没有自动启动 | `tctool-unlock autostart status --json` 看 `enabled`/`method`；再查 `service.log`（启动失败会写 `[fatal]`）。 |
+| 扫了 `payload.png` 却认证失败 | **rc2 已知问题（UX，无安全影响）**：`forget` 只清除 PSK，**不会**删除先前导出的 `payload.txt`/`payload.png`，而那个 PSK 已作废，所以扫旧码必然认证失败。重新 `pair` 会覆盖这两个文件，再扫新的即可；在 rc2 上也可以手动删除这两个文件。**rc3 起 `forget` 会自动清理这两个导出文件。** |
+
+---
+
+## 13. 自启动（用户级，默认关闭）
+
+**需求**：电脑端是否自启动由**用户自己设置**，默认关闭，安装/首次运行**绝不**偷偷启用。
+
+### 13.1 用法
+
+```powershell
+tctool-unlock autostart status            # 人类可读
+tctool-unlock autostart status --json     # 单行 ASCII JSON（供 C++ 前端解析）
+tctool-unlock autostart enable            # 启用（幂等）
+tctool-unlock autostart disable           # 关闭（未启用时也返回成功）
+```
+
+`status --json` 至少包含：
+
+```json
+{"enabled":false,"scope":"user","method":"none","taskName":"TC-tools Unlock Service",
+ "command":"\"…\\tctool-unlock.exe\" run --quiet",
+ "taskExists":false,"taskTargetsUs":false,
+ "startupShortcutExists":false,"startupShortcutTargetsUs":false,
+ "startupShortcutPath":"C:\\Users\\…\\Startup\\TC-tools Unlock Service.lnk",
+ "runKeyExists":false,"runKeyTargetsUs":false,
+ "exePath":"…","exeExists":true,"detail":"…","serviceLog":"…",
+ "appVersion":"0.2.0-rc2","protocol":1}
+```
+
+- `enabled`：**真实探测**的结果（三种机制的任一被确认指向本 exe），不是读配置文件。
+- `method`：实际生效的机制 —— `task` / `startup` / `runkey` / `none`。
+- `taskTargetsUs` / `startupShortcutTargetsUs` / `runKeyTargetsUs`：是否**指向本可执行文件**
+  （.lnk 会被真正打开读回 TargetPath/Arguments；计划任务会读它的 XML 动作）。
+  手工改过、或指向别处的条目会被如实标为 `false`。
+
+### 13.2 选型：三种机制 + 自动回退
+
+`enable` 默认 `--method auto`，按顺序尝试，第一个成功即停：
+
+| 顺序 | 机制 | 说明 | 需要管理员？ |
+|---|---|---|---|
+| 1 | 计划任务（`schtasks /create /sc onlogon /f`） | Task Scheduler 启动进程**不会分配控制台窗口**，且用户可在任务计划程序里看到/管理 | **可能需要**：很多系统上标准用户创建任务会被拒（本机实测 `ERROR: Access is denied`） |
+| 2 | **启动文件夹快捷方式**（默认落点） | `%APPDATA%\…\Start Menu\Programs\Startup\TC-tools Unlock Service.lnk`，纯用户目录文件操作；用户在 `shell:startup` 里**看得见**，删掉即关闭 | 否 |
+| 3 | `HKCU\…\CurrentVersion\Run` | 经典用户级自启动；但部分安全软件/策略会拦截该键写入（本机实测**间歇性** `UnauthorizedAccessException`） | 否 |
+
+`--method task|startup|runkey` 可强制指定单一机制（不做回退）。`disable` 会**同时**清理三种机制，
+因此无论当初用哪种方式启用、或用户手工加过别的条目，都能一次关干净。
+
+> 为什么不是只做计划任务：任务是"最干净"的方案（无窗口），但标准用户常常创建不了；
+> 用户要求"自启动由用户设置、不需要管理员"，所以必须有一个总能成功的用户级落点。
+> 启动文件夹快捷方式是三者中**最可靠且对用户可见**的，因此作为默认落点。
+
+### 13.3 用户级限制（重要）
+
+- **登录后**才启动（`onlogon` / 启动文件夹都是登录时机），因此**只能注入到用户会话**——
+  这正好符合 SendInput 的需求；但它**不能**在无人登录时解锁锁屏（那需要 SYSTEM 服务，
+  见 §7）。
+- 不请求提权、不写 HKLM、不创建服务，**不需要管理员**；卸载/关闭只需 `autostart disable`。
+- 快捷方式设了"最小化"窗口样式，并且 `run --quiet` 会立即隐藏自己的控制台窗口，
+  所以正常看不到窗口（计划任务方式则完全没有窗口）。
+
+### 13.4 如何确认已启用
+
+1. `tctool-unlock autostart status` → `enabled : True`，`mechanism` 为实际机制；
+2. **启动文件夹方式（本机的实际生效路径）**：`Win+R` 输入 `shell:startup`，应看到
+   `TC-tools Unlock Service.lnk`；右键"属性"能看到目标与参数。
+   注意：**任务管理器 →「启动应用」标签页里也会列出它**（因为启动文件夹与 HKCU Run
+   都属于"启动应用"，而计划任务不会显示在这里）；
+3. 计划任务方式：任务计划程序里应有名为 `TC-tools Unlock Service` 的任务；
+4. 实际效果：注销/重启后用 `tctool-unlock status --json` 看 `running` 与 `advertising`
+   是否为 `true`（自启动实例会写 `runtime.json` 心跳），或查看
+   `%LOCALAPPDATA%\TC-tools\unlock\service.log` 的 `[start]` 行。
+
+### 13.5 如何关闭
+
+```powershell
+tctool-unlock autostart disable
+```
+
+幂等：没有启用时也返回成功（退出码 0）。它会删除启动文件夹快捷方式、删除计划任务、
+删除 HKCU Run 值，并再次探测确认 `enabled=false`。
+
+**不用命令行也能关**（给最终用户看的，C++ 端菜单也指向本节）：
+
+- **推荐**：右键任务栏 → **任务管理器**（或 `Ctrl+Shift+Esc`）→ **「启动应用」**标签页 →
+  找到 `TC-tools Unlock Service`（或 `TC-tools Unlock`）→ 右键 **禁用**。
+  这里同时覆盖"启动文件夹快捷方式"与"HKCU Run 值"两种机制；
+- 或者：`Win+R` → `shell:startup` → 删除 `TC-tools Unlock Service.lnk`；
+- 计划任务方式：任务计划程序 → 任务计划程序库 → 删除 `TC-tools Unlock Service`。
+
+无论用哪种方式关闭，`tctool-unlock autostart status` 都会**如实反映**（它是探测系统状态，
+不读自己的配置）。
+
+### 13.6 本机实测（Windows 11 26200，标准用户，非管理员）
+
+```
+[1] status（启用前）      -> enabled:false, method:"none"
+[2] enable（auto）        -> enabled:true,  method:"startup"
+    detail: "task: schtasks /create failed (exit 1): ERROR: Access is denied.;
+             fell back to the Startup folder: startup shortcut '…\Startup\TC-tools Unlock Service.lnk'
+             created (user scope, no elevation): \"…\tctool-unlock.exe\" run --quiet"
+[3] enable 再来一次        -> exit 0，Startup 里仍只有 1 个快捷方式（幂等）
+[4] 独立读回 .lnk（WScript.Shell，非本程序代码）
+    TargetPath : C:\…\tctool-unlock.exe
+    Arguments  : run --quiet
+    WindowStyle: 7
+[5] 手工执行该命令行（run --quiet --duration 6）
+    -> 控制台输出 0 字节；service.log 记录 advertising=True 与三条 [start] 行、[stop] 行
+[6] 滚动测试：预填 1,100,030 字节 -> 运行后 service.log=848B，service.log.1=1,100,030B
+[7] disable               -> enabled:false, "startup shortcut deleted"，exit 0
+[9] disable 再来一次       -> exit 0（幂等）
+```
+
+> 说明：本机（含本会话的沙箱）**拒绝非管理员创建计划任务**，且对 `HKCU Run` 的写入
+> **间歇性拒绝**（同样的值有时成功有时 `UnauthorizedAccessException`），因此上表走的是
+> 启动文件夹回退路径——这恰好验证了自动回退的价值。计划任务与 Run 键两条路径的代码
+> 均已实现并做了探测/错误处理，但在本机**无法稳定复现成功**，属于环境限制（详见 §10）。

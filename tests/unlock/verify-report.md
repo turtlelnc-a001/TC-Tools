@@ -261,17 +261,17 @@ powershell -ExecutionPolicy Bypass -File TC-tools\tests\unlock\run-interop.ps1
 | R13 | Notify 载荷 ≤180 字节，超长须按 2 字节大端长度前缀分片（§3.2） | ✅ **已修复并实测** | 原为 warn-only（见 §5 F1），现已改为**硬约束**：新增 `NotifyBudget`（`GattUnlockServer.cs:754+`，`MaxPlaintext = 180-12-16 = 152` 循环夹取），`SendSealedAsync` 出口断言 `frame.Length <= 180`，超出即**拒发**并记 `[error] refusing to send…`（`:639-643`）。宿主自测新增断言并 PASS：`§3.2: an over-long error message is clamped so the sealed notify frame stays <= 180 bytes (179 bytes (plaintext 151 <= 152))` → **25/25 checks passed**。Android 侧两种线格式仍实测可解 |
 | R14 | Android：`requestMtu(517)` + CCCD 订阅 + 累积重组 | ✅ 静态 | `BleCentral.kt:343`（requestMtu 517）、`:399-406`（setCharacteristicNotification + CCCD 写）、`SealedFrameAssembler.kt` 累积（上限 4096B 防御） |
 | R15 | counter 严格递增，未递增即丢弃并视为攻击（§2.1） | ✅ 实测（密码学层）+ 静态（会话层） | 宿主自测 `counter replay rejected` / `counter 2 accepted`；Android selftest `重放…被拒`；互通负例 exit=1。会话层：`GattUnlockServer.cs:338-345`（`ShouldAcceptCounter` → `ErrorCodes.Replay`）、`SealedFrameAssembler.kt:98-100` |
-| R16 | 连续 5 次 PROOF 失败 → 失效 PSK 并断开（**§3.3.2**） | ✅ 静态 / ⚠️ 运行时未验证 | `GattUnlockServer.cs:27`（`MaxProofFailures = 5`）、`:457-467`（`FailCount++`；`>= 5` → `PskInvalidated = true`、`FailCount = 0`、`Save()`、`session.Dead = true`）。成功后清零：`:475`。无真机 GATT 会话故未运行 |
+| R16 | 连续 5 次 PROOF 失败 → 失效 PSK 并断开（**§3.3.2**） | ✅ **实测（判定函数）+ 静态（接线）** | **rc2 新增可执行断言**：`UnlockPolicy.RegisterProofFailure`（纯函数，宿主与 selftest **共用同一份代码**），宿主 selftest `[PASS] §3.3.1: only the 5th consecutive PROOF failure invalidates the PSK`（29/29）。接线处 `GattUnlockServer.cs` 的 `FailCount++/PskInvalidated=true/session.Dead=true` 仍为静态审查。**未在真实 GATT 会话上驱动过** |
 | R17 | 未认证不得执行命令（**§3.3.3** / §6 `not-authenticated`） | ✅ 静态 | `GattUnlockServer.cs:330-336`：认证前的 SEALED 帧直接丢弃（无密钥可回），不足 29B 且非 32B 的帧亦丢弃 |
 | R18 | 认证成功后立即刷新 challenge，防旧 proof 重放（§3.2） | ✅ 静态 | `GattUnlockServer.cs:486`：`RandomNumberGenerator.Fill(_readValue)`；且 `:480-482` 重置 `OutgoingCounter/LastIncomingCounter/LastUnlockTicks` |
-| R19 | 同会话两次 `unlock` 间隔 <1500ms → `reason="throttled"`（§5.5） | ✅ 静态 / ⚠️ 运行时未验证 | `GattUnlockServer.cs:30`（`UnlockThrottleMs = 1500`）、`:549-558`。lead 已裁定：滑动窗口**比规范严格，可接受**，但须在 `tcyunlock/README.md` 显式声明（尚未创建 → 待办），见 §5 F2 |
-| R20 | 未锁屏不注入，返回 `ok=false, reason="not-locked"`；`injectWhenUnlocked` 默认 `false`（§5.4） | ✅ 静态 / ⚠️ 运行时未验证 | `GattUnlockServer.cs:568-573`；默认值 `HostStore.cs:22`（`bool` 默认 `false`）；锁屏探测 `SessionDesktop.Query()` |
-| R21 | 不支持字符 → 整体中止、不得部分输入（§5.3） | ✅ 静态 / ⚠️ 运行时未验证 | `GattUnlockServer.cs:575-582`：先 `InputInjector.Plan(password)` **全量校验**，`!plan.Ok` 即返回 `unsupported` 且**尚未调用 Send**；`InputInjector.cs:74` 对需要 Ctrl/Alt(AltGr) 的字符判失败 |
+| R19 | 同会话两次 `unlock` 间隔 <1500ms → `reason="throttled"`（§5.5） | ✅ **实测（判定函数）+ 静态（接线）** | **rc2 新增**：`UnlockPolicy.ShouldThrottle`（`< 1500` 才节流，**恰好 1500ms 放行**），selftest `[PASS] §5.5 throttle: sliding window of 1500 ms, boundary at exactly 1500 ms is allowed`。滑动窗口语义已由 lead 裁定可接受并在 `README §6.1` 声明 |
+| R20 | 未锁屏不注入，返回 `ok=false, reason="not-locked"`；`injectWhenUnlocked` 默认 `false`（§5.4） | ✅ **实测（判定函数）+ 静态（接线）** | **rc2 新增**：`UnlockPolicy.RejectionReason(hasPassword, locked, injectWhenUnlocked)` 纯函数化并被 selftest 覆盖；默认值 `HostStore.cs:22`（`bool` 默认 `false`）；锁屏探测 `SessionDesktop.Query()` 仍为静态 |
+| R21 | 不支持字符 → 整体中止、不得部分输入（§5.3） | ✅ **实测（判定函数）+ 静态（接线）** | **rc2 新增断言**：`[PASS] §5.3: an untypeable character aborts the entire plan (0 keystrokes); ASCII plans len+1 keys   (character #1 (U+00E4) has no key on the current keyboard layout)` —— 同时验证"0 次按键"与"ASCII 计划 = 长度+1 键（含回车）"。原 `InputInjector.Plan` 全量预校验逻辑不变 |
 | R22 | 指纹通过前不得生成 PROOF（§1 安全要点） | ✅ 静态（单调用点） | 全仓 `computeProof` **仅一处调用**：`UnlockViewModel.kt:226`，位于 `onBiometricSuccess()`（`:216`）内；该方法仅由 `MainActivity.kt:133-168` 的 `BiometricPrompt.onAuthenticationSucceeded`（`:137`）触发。未认证分支不触碰 PROOF |
 | R23 | PROOF 常量时间比较（**§3.3.2**） | ✅ 实测 + 静态 | 宿主自测 `FixedTimeEquals accepts identical buffers and rejects different ones`；`Protocol.cs:165-166`（`CryptographicOperations.FixedTimeEquals`）、`TcProtocol.kt:113-114`（`MessageDigest.isEqual`） |
 | R24 | §6 错误码 / §3.3.3 reason 集合完全一致 | ✅ 实测 | 宿主自测 `§6 error codes and §3.3.2 reasons are exactly the documented set`；`Protocol.cs:243-263`（该自测文案里的 `§3.3.2` 是顺延前的编号，内容不变） |
 | R25 | §4.1 配对载荷（`v/p/id/name/psk`，base64url 无填充） | ✅ 实测 | Android selftest 往返一致 + 两类非法输入被拒；`Provisioning.kt:53-89` |
-| R26 | Windows 宿主可编译（§7 `net8.0-windows10.0.19041.0`）**且交付物自包含** | ✅ 实测 | ① `dotnet build tcyunlock` → **0 警告 0 错误**；② `dist\tctool-unlock.exe`（self-contained，`816C91AA…`）在**`DOTNET_ROOT` 清空、PATH 无 dotnet** 下直接运行 `selftest` → **25/25 PASS, exit 0**，`version` 亦 exit 0（§5 F3(b)）。**目标机无需预装 .NET 8 运行时** |
+| R26 | Windows 宿主可编译（§7 `net8.0-windows10.0.19041.0`）**且交付物自包含** | ✅ 实测（**rc2**） | ① `dotnet build tcyunlock` → **0 警告 0 错误**；② **rc2** `dist\tctool-unlock.exe`（self-contained，41,483,515 B，SHA256 `2BC9BB1C…`）在 **`DOTNET_ROOT` 清空、PATH 无 dotnet** 下直接运行 → `selftest` **29/29 PASS, exit 0**、`version --json` exit 0（`appVersion:"0.2.0-rc2"`, `protocol:1`）。运行前后哈希一致。**目标机无需预装 .NET 8 运行时** |
 | R27 | Android 协议核心可编译运行 | ✅ 实测（双路径） | ① 独立 kotlinc 编译 6 个产品源文件 + 运行 `SelfTestMainKt` → exit 0，比对 MATCH；② mobile 的 `gradle :app:selfTest` 产物比对 6/6 MATCH（§3.2.1） |
 | R28 | Android **整个 app 模块**能编译（BLE/ViewModel/Compose UI） | ✅ 实测（class 产物为证） | `android\app\build\tmp\kotlin-classes\debug\com\tctools\unlock\` 下存在 **110 个 .class**，包分布 `unlock 27 / ble 20 / data 7 / protocol 16 / ui 40` —— 含 BLE 层与 Compose UI，说明 `compileDebugKotlin`（含 Compose 编译器插件）已整体通过。且三份关键 class 的时间戳**均晚于**对应源码（`SealedFrameAssembler` src 14:39:37→class 14:40:12；`BleCentral`/`UnlockViewModel` src 14:36→class 14:38:41），产物与当前源码同步。**"Android UI/BLE 未编译"一项就此消除** |
 | R29 | **§3.3.1（本轮新冻结）IDENT 帧**：36 字节 ASCII 小写 UUID，**必须在 PROOF 之前发送**；Host 必须校验其合法性（恰 36B 且形如小写 UUID），并用**本次连接收到的 IDENT** 计算期望 PROOF，未收到时仅容错回退 `""`；Android 应等 `onCharacteristicWrite` 后再写 PROOF | ✅ 实测 + 静态（两端均已实现，偏差已修） | Android：`BleCentral.kt:423-441` 先写 36B IDENT（`WRITE_TYPE_DEFAULT`）才读 challenge；`:372-373` 的 `onCharacteristicWrite` 才会 complete 被 `runOp`(`:484-488`) await 的 op，满足 §3.3.1 的实践提示；`:425-429` 校验长度 36。Windows：`GattUnlockServer.cs:33`（`IdentLength=36`）、`:317-325` 校验并登记、`:395-410` `LooksLikeUuid` 仅接受小写 hex + 固定位置连字符。候选档位曾多出一档，**已按规范收敛为两档并复测**（见 §5 F7） |
@@ -359,6 +359,34 @@ tctool-unlock 1.0.0 (unlock protocol 1)     version exit=0
 ```
 **运行前后 exe SHA256 一致**（`816C91AA…A07F1`），确认跑的就是上表那份产物。
 → **结论：目标机无需安装 .NET 8 运行时即可运行该交付物；F3 关闭。**（R26 已同步更新）
+
+**(c) rc2 复跑（v0.2.0-rc2，任务 task-6 重新发布后）** —— 同一条件、同一命令，仅产物更新：
+```
+exe    : dist\tctool-unlock.exe   41,483,515 B   SHA256 2BC9BB1C78398BD2F09F551E11FC15C9D0712373A6F2A1AF9C9D652DB64FF392
+         （与 winhost 声明值逐字符 MATCH；运行前后哈希一致）
+DOTNET_ROOT='' / DOTNET_ROOT_X86='' / PATH 上的 dotnet = <无>
+version --json : {"tool":"tctool-unlock","appVersion":"0.2.0-rc2","protocol":1,"targetFramework":"net8.0-windows10.0.19041.0","minWindows":"10.0.16299.0","runtime":".NET 8.0.31"}   exit=0
+selftest       : 29/29 checks passed   exit=0
+  [PASS] §5.5 throttle: sliding window of 1500 ms, boundary at exactly 1500 ms is allowed
+  [PASS] §3.3.1: only the 5th consecutive PROOF failure invalidates the PSK
+  [PASS] §5.3: an untypeable character aborts the entire plan (0 keystrokes); ASCII plans len+1 keys   (character #1 (U+00E4) has no key on the current keyboard layout)
+```
+→ **rc2 在同等无运行时条件下依旧自包含可运行；且 25 → 29 条断言中新增的 3 条，正好把我此前"只能静态审查"的 R16/R19/R21 变成了可回归项。**
+证据：`evidence/f3-rc2-selftest.txt`。
+
+**(d) 我的建议被落地：`src/UnlockPolicy.cs`（可测试 seam）** —— 我在 §10.2-4 曾建议"把状态机与 BLE 传输层解耦出可注入 seam"，winhost 在 rc2 中实现：
+`UnlockPolicy.cs` 只有 3 个纯函数 + 2 个常量，且**宿主与 selftest 共用同一份代码**（非平行实现）：
+```csharp
+public const int UnlockThrottleMs = 1500;          // §5.5
+public const int MaxProofFailures = 5;             // §3.3.1
+public static bool ShouldThrottle(long now, long last, int windowMs = UnlockThrottleMs)
+    => last != 0 && now - last < windowMs;         // 恰好 1500ms 放行
+public static ProofFailureOutcome RegisterProofFailure(int current, int max = MaxProofFailures)
+    => current + 1 >= max ? new(0, true) : new(current + 1, false);   // 第 5 次才失效并清零
+public static string? RejectionReason(bool hasPassword, bool locked, bool injectWhenUnlocked)
+    => !hasPassword ? Reasons.NoPassword : (!locked && !injectWhenUnlocked ? Reasons.NotLocked : null);
+```
+语义与协议一致（含"恰好 1500ms 放行"这一边界）。**注意仍存在的缺口**：判定函数已被实测，但"GATT 会话是否真的调用了它们"仍是静态审查——见 R16/R19/R20/R21 的双重标注。
 
 **F6（已解决）— 原"协议未定义的 IDENT 帧"已由 lead 登记为冻结规范 §3.3.1。**
 `docs/UNLOCK-PROTOCOL.md` 新增 **§3.3.1 IDENT 帧（明文，36 字节，必须在 PROOF 之前发送）**，原 §3.3.1/§3.3.2 顺延为 **§3.3.2/§3.3.3**；协议**自此刻再次冻结，不得再扩展格式**。
@@ -562,8 +590,11 @@ lead 用模拟器（Android 14 / google_apis / x86_64，WHPX）验证：App 启�
 | 协议字节级 | ✅ | §2（**5 路独立实现**：node:crypto、手写 HMAC+CTR+BigInt GHASH、CPython、OpenSSL CLI、.NET `AesGcm` 全部一致）+ §3.2/§3.2.1/§3.3（两端 selftest 与权威值逐字节一致） |
 | 两端互通 | ✅ | §3.4 双向互通：Windows 解 Android 的 counter=2 帧、Android 解 Windows 的 counter=3 帧、反例被拒 |
 | 两端可编译可运行 | ✅ | 宿主 `dotnet build` 0 警告 0 错误；app 模块 110 个 class（含 ble/ui）；Android 协议核心独立 kotlinc 编译运行 |
-| 宿主交付物自包含 | ✅ | §5 F3(b)：`DOTNET_ROOT` 清空 + PATH 无 dotnet 下 `selftest` **25/25 PASS, exit 0** |
-| APK 可构建 | ✅ | §4 R30：size/SHA256/zip/8 dex/4 ABI 独立复核 |
+| 宿主交付物自包含 | ✅ | §5 F3(b)+(c)：`DOTNET_ROOT` 清空 + PATH 无 dotnet 下直接运行 —— 1.0.0 版 **25/25 PASS**；**rc2 版 29/29 PASS**（均 exit 0） |
+| 决策规则可回归（R16/R19/R20/R21） | ✅ 判定函数实测 | rc2 新增 `src/UnlockPolicy.cs`（宿主与 selftest **共用**的纯函数）；selftest 断言覆盖 1500ms 边界、第 5 次失败才失效、不可键入字符 0 次按键。**接入实时 GATT 会话仍为静态审查** |
+| 二维码图像编解码 | ✅（**verify 独立执行，两次**） | 我亲自运行 `python tcyunlock\tools\verify-qr.py --masks`：**Part A 5/5** OpenCV 5.0.0 解码逐字节还原（含中文名/v8/v9/填充边界）；**Part B 40/40** 与 segno 1.6.6 消息区码字流一致（`exact-fill` 场景 44 码字**完全相同**）。`RESULT: ALL VERIFIED`，exit=0。差异仅存在于 ISO 忽略的填充码字。**注意：校验脚本由 winhost 提供、第三方解码器 OpenCV 与参考实现 segno**；我独立执行并复核了输出（`evidence/qr-independent-verify.txt`）。<br>**第二次（脚本修复后复跑）**：winhost 把脚本默认 exe 从框架依赖的 `bin\Release\…` 改为自包含的 `dist\tctool-unlock.exe`（我报的 nit）。我在 **`DOTNET_ROOT` 清空、PATH 无 dotnet** 下**未截断整段**复跑 → 解析到 `dist\` 产物、5/5 + 40/40、`RESULT: ALL VERIFIED`、**真实退出码 exit=0**（`evidence/qr-independent-verify-v2.txt`）。同时复核其产物未变（exe 仍 `2BC9BB1C…` / 41,483,515 B；vectors 仍 4258 B），README §9.2/§9.3/§10 口径已与我的区分一致（§9.2 明写"请勿升级为运行时已验证"）。 |
+| 自启动默认关闭（task-6） | ✅ 只读实测 | 我运行 `tctool-unlock autostart status --json`（**未执行 enable**）：`{"enabled":false,"scope":"user","method":"none","taskTargetsUs":false,"runKeyTargetsUs":false,"startupShortcutTargetsUs":false,"appVersion":"0.2.0-rc2","protocol":1}` —— **默认确实关闭，且三处落点均未指向本程序** |
+| APK 可构建 | ✅ | §4 R30：size/SHA256/zip/8 dex/4 ABI 独立复核（**绑定 0.1.0，rc2 待重验**） |
 | APK 可安装可启动 | ✅（**lead 验证**，绑定 0.1.0） | lead 在模拟器 `adb install` 成功，`versionName=0.1.0`/`versionCode=1`；rc2 需重做。**verify 未运行 adb** |
 | 模拟器上的自测与 UI 流程 | 🔶（**lead 进行中**） | 结果由 lead 提供；verify 未参与、不背书 |
 
@@ -573,13 +604,63 @@ lead 用模拟器（Android 14 / google_apis / x86_64，WHPX）验证：App 启�
 2. **真实生物识别硬件** —— `adb emu finger touch` 只模拟指纹事件；`BiometricPrompt` 的真机分支（录入/锁定/取消/错误码）未验证。
 3. **真实锁屏安全桌面注入** —— 需真的锁屏并在 Winlogon 安全桌面注入；会破坏交互式会话且涉及真实密码，无法非破坏性自动化验证。
 4. **Windows 10 1709 运行时** —— 本机为 Win11 10.0.26200；仅确认 TFM/`TargetPlatformMinVersion` 与编译期兼容，**编译期兼容 ≠ 运行期兼容**。
-5. **宿主侧状态机的运行时行为**（R16/R19/R20/R21）—— 仅静态审查；入口 `private` 且依赖真实 `Session`，无手机无法驱动。
-6. **二维码图像编码/解码** —— 由 winhost 自证（OpenCV 5/5、与 segno 逐 mask 比对），**verify 未独立复核**；verify 只验证了配对**载荷字节**（§4 R25）与 `qrdump` 之外的协议路径。
+5. **决策规则到实时 GATT 会话的接线**（R16/R19/R20/R21）—— 判定函数已实测（见 §11.1），但"服务器在真实会话中确实调用它们"仍是静态审查；入口依赖真实 `Session`，无手机无法驱动。
+6. **自启动的真实生效**（task-6）—— "默认关闭"已由我只读实测；但**"重启/登录后是否按时拉起"未验证**。winhost 已在 `README §13.6/§10` 如实记录本机限制：`schtasks /create` 以标准用户被系统拒绝（`Access is denied.`）、`HKCU\…\Run` 写入被间歇性拦截（安全策略/安全软件），因此 auto 模式的实测落点是**启动文件夹快捷方式**；计划任务与 Run 键两条路径**在本机无法稳定复现成功**。这两条路径的真实重启行为属未验证。
 7. **aapt2 元数据**（package/label/minSdk/targetSdk）—— `aapt2` 未安装，引用 mobile 报告，未独立验证。
 
 ### 11.3 版本漂移风险（终局结论必须绑定冻结哈希）
 
-- 本轮验证期间**至少发生 4 次代码变更**（§9 实录），且 **APK 被我核验后又被重建一次**（`11,458,389 / C66734F8…` → `11,556,096 / 71C4DF5E…`）。
+- 本轮验证期间**至少发生 6 次代码/产物变更**（§9 实录）：`GattUnlockServer.cs` 4 版、`Program.cs` 3 版、APK 被重建、宿主 exe 由 1.0.0（`816C91AA…`）换为 **rc2（`2BC9BB1C…`）**；`Protocol.cs` 与 §8 权威向量始终未变。
 - 因此：**任何"通过"结论都必须绑定到具体哈希**；哈希一变，标注"静态"与"实测"的结论都需重跑。
-- **终局交付必须列出全部参与哈希**，建议至少包含：`Protocol.cs`、`GattUnlockServer.cs`、`Program.cs`、`InputInjector.cs`、`TcProtocol.kt`、`SealedFrameAssembler.kt`、`BleCentral.kt`、`UnlockViewModel.kt`、`dist\tctool-unlock.exe`、`dist\android\*.apk`、`dist\android\vectors-android.json`、`tcyunlock\dist\selftest-vectors.json`、`tests\unlock\vectors.json`。
-- **`dist\android\…-0.1.0.apk` 已被 rc2 取代，不得作为终局依据**；本报告中 R30 的 APK 数字对应 0.1.0，rc2 出来后须整条重验。
+- **终局交付必须列出全部参与哈希**，至少包含：`Protocol.cs`、`GattUnlockServer.cs`、`Program.cs`、`UnlockPolicy.cs`、`InputInjector.cs`、`TcProtocol.kt`、`SealedFrameAssembler.kt`、`BleCentral.kt`、`UnlockViewModel.kt`、`dist\tctool-unlock.exe`、`dist\android\*.apk`、`dist\android\vectors-android.json`、`tcyunlock\dist\selftest-vectors.json`、`tests\unlock\vectors.json`。
+- **rc2 当前哈希（我方复核时的版本，供终局比对）**：
+```
+6BB28B4899E00F7A…  tcyunlock/src/Protocol.cs          （自始至终未变）
+BDB44D94B98F28F2…  tcyunlock/src/Ble/GattUnlockServer.cs
+5C9A53F4149B11C1…  tcyunlock/src/UnlockPolicy.cs       （rc2 新增）
+5950A56AEA1EB2AD…  tcyunlock/src/Win/InputInjector.cs
+41483515 B / 2BC9BB1C78398BD2F09F551E11FC15C9D0712373A6F2A1AF9C9D652DB64FF392  tcyunlock/dist/tctool-unlock.exe  ← **冻结交付物（绑定本报告全部 Windows 实测结论）**
+11556096 B / 71C4DF5E44699186356488179F789422EB024999B9D1B4498F1B00D4ABA71769  dist/android/TC-Tools-Unlock-0.1.0.apk
+```
+- ⚠️ **源码 / 冻结产物「故意不同步」（lead 裁定后由 winhost 主动通报，我已独立核实）**：
+  - **事实**：我方复核后，`src/Program.cs` 由 `B26E8D7E63AB97C7…` 变为 **`2C49CFC7921CA443…`**（我方独立重算确认），其余 4 个源文件**均未变**。
+  - **冻结产物未受影响（我已独立验证）**：`dist\tctool-unlock.exe` 仍为 **41,483,515 B / `2BC9BB1C…`**、LastWriteTime 仍为 **2026-10-04 14:50:55**；`dist\selftest-vectors.json` 仍 4258 B。winhost 只跑了 `dotnet build`（写 `bin/obj`），未跑 `publish`，因此 `dist\` 未被触碰。**本报告全部 Windows 实测结论继续有效，无需重跑。**
+  - **变更内容**：`CmdForget` 增加"删除过期导出物 `payload.txt`/`payload.png`"（标注 `since v0.2.0-rc3 / deferred from rc2`），即 §11.5 那条 UX 项的源码落地；lead 裁定**不重建 rc2 二进制**。
+  - **路径安全复核（我另行审查，因为这是删除文件的代码路径）**：`Program.cs:456-462` 的删除目标来自 `HostPaths.PayloadTxt` / `HostPaths.PayloadPng` —— **编译期固定的两个路径**（`Path.Combine(Dir, "payload.txt"|"payload.png")`），**无通配符、无递归、不接受用户输入**，不存在路径穿越或误删风险。✓
+  - **给后续复核者的重要提醒（可复现性缺口）**：**用当前 `src/` 重新构建，不会得到 `2BC9BB1C…`**（源码已领先一个 rc3 改动）。因此终局结论**以冻结产物哈希为准**；若需从源码复现，必须先检出与 `2BC9BB1C…` 对应的源码版本。
+  - 建议措辞（已采用）：**"冻结产物 = rc2 二进制（哈希见上）；`src/` 含一项 rc3 变更，随下一次构建生效，不影响 rc2 结论。"**
+- **`dist\android\…-0.1.0.apk` 不是最终交付**（rc2 的 APK 尚未产出，我复核时该目录仍是 0.1.0）；R30 的 APK 数字对应 0.1.0，**rc2 APK 出来后须整条重验**。
+- **rc2 的协议回归我已跑过并全部通过**：§8 向量 MATCH、`dist\selftest-vectors.json` MATCH、双向互通全过。协议层未受 rc2 影响。
+
+### 11.4 证据溯源说明（本轮唯一的归因争议，已了结）
+
+**事项**：我第一次运行 `verify-qr.py --masks` 时退出码为 1，被我如实记录。winhost 随后在给我的消息中**猜测**这是"PowerShell 用 `| Select-Object -First N` 截断输出造成的、脚本自身退出码是 0"。
+
+**核实结论（以证据为准）**：该猜测**不成立**。那次我**没有截断输出**，脚本自身抛出了真实异常：
+```
+RuntimeError: qrdump failed (2147516547): You must install .NET to run this application.
+Failed to resolve hostfxr.dll [not found]. Error code: 0x80008083
+```
+**根因**：脚本当时的 `DEFAULT_EXE` 指向框架依赖的 `bin\Release\…\tctool-unlock.exe`，而该次运行未设置 `DOTNET_ROOT` —— 这正是我提交的那条 nit。修复后我在**无 dotnet 环境**下复跑，得到 `exit=0` 与 `RESULT: ALL VERIFIED`（§11.1）。
+
+**已由我独立核验的两点**（未采信自述）：
+1. **错误归因未进入任何交付物**。我在 `tcyunlock/**` 全量检索 `截断|测量误差|Select-Object|exit code: 1`，仅 3 处命中，**全部为无关的正当用法**：`build.ps1:117` 的 `Select-Object -Last 3`（构建冒烟的正常输出裁剪）、`README.md:175` 的 `error.msg` 超长截断（即 F1 的夹取）、`README.md:205` 的 host.json"临时文件+替换"防崩溃截断。**没有一处是本条归因。**
+2. **该失败模式已被固化为可读错误**：`tools/verify-qr.py:105-107` 现对 `hostfxr` / `You must install .NET` 输出明确提示（"that build is framework-dependent. Run build.ps1 … or set DOTNET_ROOT"），后续复现者会直接看到原因。
+
+**为什么值得记进报告**：把"验证者的真实失败"重新解释为"测量误差"，会削弱**后续所有退出码证据**的可信度。记录保留这一节的目的是：**本项目对"通过/失败"的判定以可复现命令与原始输出为准，不以任何一方的解释为准** —— 包括验证者自己的解释。
+
+**winhost 的处置（如实记录）**：他主动撤回了该猜测，确认其未污染持久记录，并请我以本报告的表述为准。这是一次健康的纠错。
+
+### 11.5 冻结状态与残余风险
+
+- **Windows 侧 rc2 已冻结**（winhost 声明，我已独立复核数值一致）：`dist\tctool-unlock.exe` 41,483,515 B / `2BC9BB1C…`；`dist\selftest-vectors.json` 4258 B。
+- **残余事项（1 条，需 lead 决策）—— 已核定为「UX/语义项」，安全影响为零**（不是安全问题）：
+  winhost 声明存在一个已文档化但**未落地**的改动：`forget` 后不清理过期导出的 `payload.txt`/`payload.png`。
+  **我没有采信其"安全影响为零"的自述，而是独立核实了三条腿**：
+  1. **代码路径**：`Program.cs:442-447` `CmdForget` → `HostStore.ClearPairing()`；`HostStore.cs:215-218` 明确 `State.PskProtected = null` 后 `Save()`。即 `forget` **确实清除 PSK 密文**。
+  2. **磁盘现状（我以只读方式实查）**：`%LOCALAPPDATA%\TC-tools\unlock\` 下**只有 `host.json`（231 B），无 `payload.*` 残留**；`host.json` 的顶层键为 `v / hostId / hostName / pskInvalidated / failCount / injectWhenUnlocked / keyDelayMs / publishLocalName` —— **不含 `pskProtected`、不含 `passwordProtected`**（唯一含 "psk" 的是布尔标志 `pskInvalidated`，非密钥材料）。检查时我只输出键名、未打印任何值。
+  3. **逻辑闭环**：即便用户扫到旧二维码，宿主在无 PSK 时 `HandleProofAsync` 直接提前返回（`GattUnlockServer.cs:417-422`：`PROOF received but this host is not paired (no PSK)`），**PROOF 不可能通过** → 不会产生未授权解锁。
+  → **结论：最坏后果仅为"用户扫旧码后认证失败、困惑一次"；不构成安全缺陷，无可用密钥材料残留。** 归档为 UX 项。
+  **winhost 的建议**（如实记录）：保持 rc2 冻结、该项**不在本轮修**，理由是为一次低频路径的体验问题重建安装包不划算（会触发 exe 哈希变化 → 我重跑 F3/回归 + lead 重打安装包 + C++ 端重新对照哈希）；转为"已文档化、延后到下一次构建"。
+  **待 lead 决策**：若不修 → `2BC9BB1C…` 即 Windows 侧终局哈希；若修 → winhost 重建并主动提供新哈希，我按**新版本**在新哈希上重跑（预计 1 分钟内）。
+- **Android 侧 rc2 APK 仍未产出**（我最后一次核实时 `dist\android\` 仍为 0.1.0）。**终局验收必须等它出现并重验 R30。**

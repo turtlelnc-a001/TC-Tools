@@ -1,0 +1,57 @@
+exe   : C:\Users\吴桥生\Videos\DSHworkarea\TC-tools\tcyunlock\dist\tctool-unlock.exe
+segno : 1.6.6
+opencv: 5.0.0
+ecc   : M
+
+=== Part A: PNG -> OpenCV decode round trip ===
+  [ OK ] short-ascii    version=8 mask=2 decoded payload identical
+  [ OK ] chinese-name   version=9 mask=2 decoded payload identical
+  [ OK ] long-ascii     version=9 mask=3 decoded payload identical
+  [ OK ] exact-fill-v2m version=2 mask=3 decoded payload identical
+  [ OK ] needs-padding  version=2 mask=1 decoded payload identical
+  5/5 payloads decoded back byte-for-byte
+
+=== Part B: codeword stream vs segno (all masks) ===
+  [ OK ] short-ascii    mask=0  message region identical (107 codewords); differs only in ISO-ignored pad codewords (ours 1 canonical pads, segno 1 extra 0x00 + 0)
+  [ OK ] short-ascii    mask=1  message region identical (107 codewords); differs only in ISO-ignored pad codewords (ours 1 canonical pads, segno 1 extra 0x00 + 0)
+  [ OK ] short-ascii    mask=2  message region identical (107 codewords); differs only in ISO-ignored pad codewords (ours 1 canonical pads, segno 1 extra 0x00 + 0)
+  [ OK ] short-ascii    mask=3  message region identical (107 codewords); differs only in ISO-ignored pad codewords (ours 1 canonical pads, segno 1 extra 0x00 + 0)
+  [ OK ] short-ascii    mask=4  message region identical (107 codewords); differs only in ISO-ignored pad codewords (ours 1 canonical pads, segno 1 extra 0x00 + 0)
+  [ OK ] short-ascii    mask=5  message region identical (107 codewords); differs only in ISO-ignored pad codewords (ours 1 canonical pads, segno 1 extra 0x00 + 0)
+  [ OK ] short-ascii    mask=6  message region identical (107 codewords); differs only in ISO-ignored pad codewords (ours 1 canonical pads, segno 1 extra 0x00 + 0)
+  [ OK ] short-ascii    mask=7  message region identical (107 codewords); differs only in ISO-ignored pad codewords (ours 1 canonical pads, segno 1 extra 0x00 + 0)
+  [ OK ] chinese-name   mask=0  message region identical (139 codewords); differs only in ISO-ignored pad codewords (ours 1 canonical pads, segno 1 extra 0x00 + 0)
+  [ OK ] chinese-name   mask=1  message region identical (139 codewords); differs only in ISO-ignored pad codewords (ours 1 canonical pads, segno 1 extra 0x00 + 0)
+  [ OK ] chinese-name   mask=2  message region identical (139 codewords); differs only in ISO-ignored pad codewords (ours 1 canonical pads, segno 1 extra 0x00 + 0)
+  [ OK ] chinese-name   mask=3  message region identical (139 codewords); differs only in ISO-ignored pad codewords (ours 1 canonical pads, segno 1 extra 0x00 + 0)
+  [ OK ] chinese-name   mask=4  message region identical (139 codewords); differs only in ISO-ignored pad codewords (ours 1 canonical pads, segno 1 extra 0x00 + 0)
+  [ OK ] chinese-name   mask=5  message region identical (139 codewords); differs only in ISO-ignored pad codewords (ours 1 canonical pads, segno 1 extra 0x00 + 0)
+  [ OK ] chinese-name   mask=6  message region identical (139 codewords); differs only in ISO-ignored pad codewords (ours 1 canonical pads, segno 1 extra 0x00 + 0)
+  [ OK ] chinese-name   mask=7  message region identical (139 codewords); differs only in ISO-ignored pad codewords (ours 1 canonical pads, segno 1 extra 0x00 + 0)
+  [ OK ] long-ascii     mask=0  message region identical (169 codewords); differs only in ISO-ignored pad codewords (ours 1 canonical pads, segno 1 extra 0x00 + 0)
+  [ OK ] long-ascii     mask=1  message region identical (169 codewords); differs only in ISO-ignored pad codewords (ours 1 canonical pads, segno 1 extra 0x00 + 0)
+  [ OK ] long-ascii     mask=2  message region identical (169 codewords); differs only in ISO-ignored pad codewords (ours 1 canonical pads, segno 1 extra 0x00 + 0)
+  [ OK ] long-ascii     mask=3  message region identical (169 codewords); differs only in ISO-ignored pad codewords (ours 1 canonical pads, segno 1 extra 0x00 + 0)
+  [ OK ] long-ascii     mask=4  message region identical (169 codewords); differs only in ISO-ignored pad codewords (ours 1 canonical pads, segno 1 extra 0x00 + 0)
+  [ OK ] long-ascii     mask=5  message region identical (169 codewords); differs only in ISO-ignored pad codewords (ours 1 canonical pads, segno 1 extra 0x00 + 0)
+  [ OK ] long-ascii     mask=6  message region identical (169 codewords); differs only in ISO-ignored pad codewords (ours 1 canonical pads, segno 1 extra 0x00 + 0)
+  [ OK ] long-ascii     mask=7  message region identical (169 codewords); differs only in ISO-ignored pad codewords (ours 1 canonical pads, segno 1 extra 0x00 + 0)
+  [ OK ] exact-fill-v2m mask=0  entire 44-codeword stream identical
+  [ OK ] exact-fill-v2m mask=1  entire 44-codeword stream identical
+  [ OK ] exact-fill-v2m mask=2  entire 44-codeword stream identical
+  [ OK ] exact-fill-v2m mask=3  entire 44-codeword stream identical
+  [ OK ] exact-fill-v2m mask=4  entire 44-codeword stream identical
+  [ OK ] exact-fill-v2m mask=5  entire 44-codeword stream identical
+  [ OK ] exact-fill-v2m mask=6  entire 44-codeword stream identical
+  [ OK ] exact-fill-v2m mask=7  entire 44-codeword stream identical
+  [ OK ] needs-padding  mask=0  message region identical (17 codewords); differs only in ISO-ignored pad codewords (ours 11 canonical pads, segno 1 extra 0x00 + 10)
+  [ OK ] needs-padding  mask=1  message region identical (17 codewords); differs only in ISO-ignored pad codewords (ours 11 canonical pads, segno 1 extra 0x00 + 10)
+  [ OK ] needs-padding  mask=2  message region identical (17 codewords); differs only in ISO-ignored pad codewords (ours 11 canonical pads, segno 1 extra 0x00 + 10)
+  [ OK ] needs-padding  mask=3  message region identical (17 codewords); differs only in ISO-ignored pad codewords (ours 11 canonical pads, segno 1 extra 0x00 + 10)
+  [ OK ] needs-padding  mask=4  message region identical (17 codewords); differs only in ISO-ignored pad codewords (ours 11 canonical pads, segno 1 extra 0x00 + 10)
+  [ OK ] needs-padding  mask=5  message region identical (17 codewords); differs only in ISO-ignored pad codewords (ours 11 canonical pads, segno 1 extra 0x00 + 10)
+  [ OK ] needs-padding  mask=6  message region identical (17 codewords); differs only in ISO-ignored pad codewords (ours 11 canonical pads, segno 1 extra 0x00 + 10)
+  [ OK ] needs-padding  mask=7  message region identical (17 codewords); differs only in ISO-ignored pad codewords (ours 11 canonical pads, segno 1 extra 0x00 + 10)
+  40/40 streams agree on the message region
+
+RESULT: ALL VERIFIED
