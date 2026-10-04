@@ -2,13 +2,20 @@
 #include "app.hpp"
 #include "tools.hpp"
 #include "cli.hpp"
+#include "unlock.hpp"
 
 #include <cstdlib>
 #include <string>
 
 using namespace tcu;
 
+// 本文件内部使用：读取 1..maxC 的选项（共享实现见 unlock::pageChoice）
 static int readChoiceNum(App& a, int minC, int maxC) {
+  return unlock::pageChoice(minC, maxC, a);
+}
+
+// shared with unlock.cpp (declared in unlock.hpp as unlock::pageChoice)
+int unlock::pageChoice(int minC, int maxC, App& a) {
   for (;;) {
     print(a.tr(LK_HINT_CHOOSE), CLR_YELLOW);
     std::string s = trim(readLine());
@@ -25,7 +32,7 @@ static void banner(App& a) {
   println("   | |   | | | | | | |    | '_ \\/ __| ", CLR_CYAN);
   println("   | |   | | | |_| | |___ | | | \\__ \\ ", CLR_CYAN);
   println("   |_|   |_| |____/ \\____||_| |_|___/  ", CLR_CYAN);
-  println("  " + a.f(LK_VERSION, "v0.1.0-rc2") + "  |  Windows 10 1709+", CLR_WHITE);
+  println("  " + a.f(LK_VERSION, "v0.2.0-rc2") + "  |  Windows 10 1709+", CLR_WHITE);
   println("  " + a.f(LK_OS_LINE, a.wv.name.c_str()), CLR_GRAY);
   println("  " + a.f(LK_LANG_LINE, (a.en ? "English" : "简体中文")), CLR_GRAY);
 }
@@ -39,26 +46,30 @@ int pageHome(App& a) {
     println(sf("  %d. %s", 1, a.tr(LK_M1).c_str()), CLR_DEF);
     println(sf("  %d. %s", 2, a.tr(LK_M2).c_str()), CLR_DEF);
     println(sf("  %d. %s", 3, a.tr(LK_M3).c_str()), CLR_DEF);
-    println(sf("  %d. %s", 4, a.tr(LK_M4).c_str()), CLR_DEF);
-    println(sf("  %d. %s", 5, a.tr(LK_M5).c_str()), CLR_DEF);
-    println(sf("  %d. %s", 6, a.tr(LK_M6).c_str()), CLR_DEF);
+    println(sf("  %d. %s", 4, a.tr(LK_M_UNLOCK).c_str()), CLR_DEF);
+    println(sf("  %d. %s", 5, a.tr(LK_M4).c_str()), CLR_DEF);
+    println(sf("  %d. %s", 6, a.tr(LK_M5).c_str()), CLR_DEF);
+    println(sf("  %d. %s", 7, a.tr(LK_M7).c_str()), CLR_DEF);
     println("", CLR_DEF);
-    int n = readChoiceNum(a, 1, 6);
+    int n = readChoiceNum(a, 1, 7);
     switch (n) {
       case 1: return 1;
       case 2: return 2;
       case 3: return 3;
       case 4:
+        pageUnlock(a);
+        break;
+      case 5:
         a.en = !a.en;
         a.saveConfig();
         println(a.f(LK_LANG_SWITCHED, (a.en ? "English" : "简体中文")), CLR_GREEN);
         break;
-      case 5:
+      case 6:
         openUrl("https://turtleweb.cc.cd");
         println(a.tr(LK_WEB_OPENED), CLR_GREEN);
         kbWait();
         break;
-      case 6:
+      case 7:
         println(a.tr(LK_GOODBYE), CLR_GREEN);
         return -1;
     }

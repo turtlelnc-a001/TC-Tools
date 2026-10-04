@@ -1,5 +1,5 @@
 // lang.cpp - 中英文文案表 (zh / en language table)
-// TC-tools v0.1.0-rc2
+// TC-tools v0.2.0-rc2
 #include "lang.hpp"
 
 const LangEntry* langTable() {
@@ -8,7 +8,7 @@ const LangEntry* langTable() {
   T[LK_VERSION] = { "版本 %s", "Version %s" };
   T[LK_OS_UNSUPPORTED] = { "不支持的系统！需要 Windows 10 1703（build 15063）或更高版本。当前：%s", "Unsupported OS! Requires Windows 10 1703 (build 15063) or higher. Current: %s" };
   T[LK_OS_LINE] = { "系统：%s", "OS: %s" };
-  T[LK_LANG_LINE] = { "语言：%s（首页可选 4 切换）", "Language: %s (press 4 to switch)" };
+  T[LK_LANG_LINE] = { "语言：%s（首页可选 5 切换）", "Language: %s (press 5 to switch)" };
   T[LK_HINT_CHOOSE] = { "请输入选项序号后回车：", "Enter your choice number: " };
   T[LK_INVALID_CHOICE] = { "无效选项，请重新输入。", "Invalid choice, try again." };
   T[LK_PRESS_ENTER] = { "按回车键继续...", "Press Enter to continue..." };
@@ -144,5 +144,55 @@ const LangEntry* langTable() {
   T[LK_CLI_REASONING] = { "(正在思考...)", "(thinking...)" };
   T[LK_CLI_CHAT_NOTE] = { "对话开始（输出为流式），输入 /exit 返回上一页。", "Chat started (streaming). Type /exit to go back." };
   T[LK_CLI_ASK_QUIT] = { "（未发送）", "(not sent)" };
+  // ---- unlock (bluetooth phone unlock) ----
+  T[LK_M_UNLOCK] = { "解锁电脑（蓝牙）", "Unlock PC (Bluetooth)" };
+  T[LK_M7] = { "退出", "Exit" };
+  T[LK_PU_TITLE] = { "解锁电脑 —— 手机指纹蓝牙解锁", "Unlock PC - phone fingerprint via Bluetooth" };
+  T[LK_PU_DESC1] = { "工作原理：手机端应用「TC-Tools 解锁电脑」通过指纹验证后，经蓝牙向本机发送加密解锁指令，", "How it works: the phone app \"TC-Tools Unlock PC\" verifies your fingerprint and sends an encrypted unlock command over Bluetooth," };
+  T[LK_PU_DESC2] = { "本机校验通过后自动输入电脑密码完成解锁。密码与密钥都不经过蓝牙明文传输。", "this PC verifies it and types your password to unlock. Neither the password nor the key is ever sent in plain text." };
+  T[LK_PU_DESC3] = { "首次使用请先「配对手机」生成二维码，用手机端扫描或粘贴配对文本。", "First time: run \"Pair phone\" to generate a QR code, then scan it (or paste the pairing text) in the phone app." };
+  T[LK_PU_1] = { "配对手机（显示二维码）", "Pair phone (show QR code)" };
+  T[LK_PU_2] = { "设置电脑解锁密码", "Set PC unlock password" };
+  T[LK_PU_3] = { "查看解锁服务状态", "View unlock service status" };
+  T[LK_PU_4] = { "启动解锁服务（前台常驻，Ctrl+C 退出）", "Start unlock service (foreground, Ctrl+C to quit)" };
+  T[LK_PU_5] = { "忘记已配对的手机", "Forget paired phone" };
+  T[LK_PU_6] = { "运行离线自测（协议与加密回环）", "Run offline self-test (protocol & crypto loopback)" };
+  T[LK_PU_BACK] = { "返回上一页", "Back to previous page" };
+  T[LK_PU_STATUS] = { "解锁服务状态", "Unlock service status" };
+  T[LK_PU_PAIRED] = { "已配对手机：是", "Paired phone: yes" };
+  T[LK_PU_NOT_PAIRED] = { "已配对手机：否（请先执行「配对手机」）", "Paired phone: no (run \"Pair phone\" first)" };
+  T[LK_PU_ADV_ON] = { "蓝牙广播：正在广播，等待手机连接", "Bluetooth advertising: on, waiting for phone" };
+  T[LK_PU_ADV_OFF] = { "蓝牙广播：未启动（解锁服务未运行）", "Bluetooth advertising: off (unlock service not running)" };
+  T[LK_PU_PWD_SET] = { "电脑解锁密码：已设置（加密保存）", "PC unlock password: set (stored encrypted)" };
+  T[LK_PU_PWD_UNSET] = { "电脑解锁密码：未设置（请先执行「设置电脑解锁密码」）", "PC unlock password: not set (run \"Set PC unlock password\" first)" };
+  T[LK_PU_HOST] = { "本机 ID：%s", "Host ID: %s" };
+  T[LK_PU_PEER] = { "手机名称：%s", "Phone name: %s" };
+  T[LK_PU_PSK_OK] = { "配对密钥：有效", "Pairing key: valid" };
+  T[LK_PU_PSK_BAD] = { "配对密钥：已失效（连续验证失败，请重新配对）", "Pairing key: invalidated (too many failed attempts, pair again)" };
+  T[LK_PU_SVC_RUNNING] = { "解锁服务：运行中", "Unlock service: running" };
+  T[LK_PU_SVC_STOPPED] = { "解锁服务：未运行", "Unlock service: not running" };
+  T[LK_PU_NEED_PAIR] = { "提示：尚未配对手机，无法接收解锁指令。", "Note: no phone paired yet, unlock commands cannot be received." };
+  T[LK_PU_NEED_PWD] = { "提示：尚未设置电脑解锁密码，解锁将无法完成。", "Note: no unlock password set, unlocking will fail." };
+  T[LK_PU_PAIR_HEAD] = { "---- 配对信息（二维码 + 配对文本）----", "---- Pairing info (QR code + pairing text) ----" };
+  T[LK_PU_PAIR_NOTE1] = { "用手机端「TC-Tools 解锁电脑」扫码；扫码不方便时，可手动粘贴下面的配对文本。", "Scan the QR code with the phone app; if scanning is hard, paste the pairing text below manually." };
+  T[LK_PU_PAIR_NOTE2] = { "配对文本含密钥，请勿截图外发。重新配对会生成新密钥，旧手机立即失效。", "The pairing text contains the key - do not share screenshots. Re-pairing invalidates the old phone." };
+  T[LK_PU_PAYLOAD] = { "配对文本（供手动粘贴）：", "Pairing text (for manual paste):" };
+  T[LK_PU_PWD_HEAD] = { "---- 设置电脑解锁密码 ----", "---- Set PC unlock password ----" };
+  T[LK_PU_PWD_NOTE] = { "输入的密码将使用 Windows DPAPI 加密后保存在本机，不会通过网络或蓝牙发送。", "The password is encrypted locally with Windows DPAPI and never sent over network or Bluetooth." };
+  T[LK_PU_PWD_DONE] = { "电脑解锁密码已保存。", "PC unlock password saved." };
+  T[LK_PU_PWD_FAIL] = { "设置失败（两次输入不一致或写入失败）。", "Failed (inputs did not match, or write error)." };
+  T[LK_PU_RUN_HEAD] = { "---- 启动解锁服务 ----", "---- Start unlock service ----" };
+  T[LK_PU_RUN_NOTE] = { "服务将在前台常驻并开始蓝牙广播，保持手机可连接。按 Ctrl+C 结束。", "The service stays in the foreground and starts Bluetooth advertising. Press Ctrl+C to stop." };
+  T[LK_PU_FORGET_HEAD] = { "---- 忘记已配对的手机 ----", "---- Forget paired phone ----" };
+  T[LK_PU_FORGET_CONFIRM] = { "确认清除配对信息与密钥？手机将需要重新配对 (y/n)：", "Clear pairing data and key? The phone will need to pair again (y/n): " };
+  T[LK_PU_FORGET_DONE] = { "已清除配对信息。", "Pairing data cleared." };
+  T[LK_PU_SELFTEST_HEAD] = { "---- 离线自测（协议与加密回环）----", "---- Offline self-test (protocol & crypto) ----" };
+  T[LK_PU_EXE_MISSING] = { "未找到解锁组件：%s", "Unlock component not found: %s" };
+  T[LK_PU_EXE_HINT1] = { "解锁组件 tctool-unlock.exe 随 TC-tools 安装包一同安装（位于程序目录的 unlock 子目录）。", "The unlock component tctool-unlock.exe ships with the TC-tools installer (unlock subfolder)." };
+  T[LK_PU_EXE_HINT2] = { "若您是源码运行，请先构建：见 tcyunlock\\README.md。", "If you run from source, build it first: see tcyunlock\\README.md." };
+  T[LK_PU_EXE_PATH] = { "已尝试的路径：", "Paths tried:" };
+  T[LK_PU_CMDOUT] = { "---- 组件输出 ----", "---- Component output ----" };
+  T[LK_PU_EXITCODE] = { "组件退出码：%d", "Component exit code: %d" };
+  T[LK_PU_PHONE_NOTE] = { "手机端应用名：「TC-Tools 解锁电脑」（Android 8.0+，需蓝牙与指纹）。", "Phone app: \"TC-Tools Unlock PC\" (Android 8.0+, requires Bluetooth and fingerprint)." };
   return T;
 }

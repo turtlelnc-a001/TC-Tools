@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+
+    <!-- 1709 compatibility: the TFM pins the WinRT projection surface, while
+         TargetPlatformMinVersion declares the floor we actually support.
+         See README.md "1709 compatibility". -->
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.16299.0</TargetPlatformMinVersion>
+
+    <AssemblyName>tctool-unlock</AssemblyName>
+    <RootNamespace>TC.Tools.Unlock</RootNamespace>
+    <Version>0.2.0-rc2</Version>
+    <InformationalVersion>0.2.0-rc2</InformationalVersion>
+    <Product>TC-tools Unlock Host</Product>
+    <Description>Windows BLE GATT unlock host for TC-tools (phone as GATT central).</Description>
+
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+
+    <!-- Console app: keep the WinRT interop warnings quiet but visible. -->
+    <NoWarn>$(NoWarn);CA1416</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- DPAPI ProtectedData is not part of the shared framework on .NET 8. -->
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
+  </ItemGroup>
+
+  <!-- The spike project validates the WinRT/GATT approach; it is not part of
+       the shipping tool but must not break `dotnet build`. -->
+  <ItemGroup>
+    <Compile Remove="spike/**" />
+    <None Remove="spike/**" />
+  </ItemGroup>
+
+</Project>

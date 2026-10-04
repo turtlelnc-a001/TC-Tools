@@ -1,6 +1,7 @@
 ﻿; ==========================================================================
-; TCtools-installer.nsi  -  NSIS installer for TC-tools v0.1.0-rc2
+; TCtools-installer.nsi  -  NSIS installer for TC-tools v0.2.0-rc2
 ; Build:  makensis TCtools-installer.nsi    (or run build-installer.bat)
+;         add /DHAVE_UNLOCK=1 to bundle the Bluetooth unlock component
 ; Requirements: NSIS 3.x (Unicode)  -  https://nsis.sourceforge.io/
 ; ==========================================================================
 
@@ -8,7 +9,7 @@ Unicode true
 !include "MUI2.nsh"
 !include "LogicLib.nsh"
 
-!define VERSION       "0.1.0-rc2"
+!define VERSION       "0.2.0-rc2"
 !define APPNAME       "TC-tools"
 !define EXENAME       "tctool.exe"
 !define PUBLISHER     "TC-tools Project (Wu Qiaosheng)"
@@ -56,6 +57,10 @@ LangString STR_DESKTOP_TITLE ${LANG_ENGLISH}     "Desktop shortcut"
 LangString STR_DESKTOP_TITLE ${LANG_SIMPCHINESE} "桌面快捷方式"
 LangString STR_SM_TITLE     ${LANG_ENGLISH}      "Start menu entry"
 LangString STR_SM_TITLE     ${LANG_SIMPCHINESE}  "开始菜单项"
+LangString STR_UNLOCK_TITLE ${LANG_ENGLISH}      "Bluetooth unlock component"
+LangString STR_UNLOCK_TITLE ${LANG_SIMPCHINESE}  "蓝牙解锁组件"
+LangString STR_UNLOCK_DESC  ${LANG_ENGLISH}      "Unlock this PC with your phone's fingerprint over Bluetooth (phone app: TC-Tools Unlock PC). Installs tctool-unlock.exe and its runtime into the unlock subfolder."
+LangString STR_UNLOCK_DESC  ${LANG_SIMPCHINESE}  "用手机指纹通过蓝牙解锁本机（手机端应用「TC-Tools 解锁电脑」）。将 tctool-unlock.exe 及其运行时安装到 unlock 子目录。"
 
 ; ---------------------------------------------------------- sections -------
 Section "$(STR_MAIN_TITLE)" SEC_MAIN
@@ -93,6 +98,16 @@ Section "$(STR_MAIN_TITLE)" SEC_MAIN
   WriteRegStr HKLM "${APPPATHKEY}" "Path" "$INSTDIR"
 SectionEnd
 
+; Bluetooth unlock component (tctool-unlock.exe + runtime), bundled when built
+!ifdef HAVE_UNLOCK
+Section "$(STR_UNLOCK_TITLE)" SEC_UNLOCK
+  SetRegView 64
+  SetOutPath "$INSTDIR\unlock"
+  File /r "..\tcyunlock\dist\*.*"
+  SetOutPath "$INSTDIR"
+SectionEnd
+!endif
+
 ; desktop shortcut: optional, default OFF
 Section /o "$(STR_DESKTOP_TITLE)" SEC_DESKTOP
   SetRegView 64
@@ -112,6 +127,9 @@ SectionEnd
   !insertmacro MUI_DESCRIPTION_TEXT ${SEC_MAIN}    "$(STR_MAIN_DESC)"
   !insertmacro MUI_DESCRIPTION_TEXT ${SEC_DESKTOP} "$(STR_DESKTOP_DESC)"
   !insertmacro MUI_DESCRIPTION_TEXT ${SEC_SM}      "$(STR_SM_DESC)"
+!ifdef HAVE_UNLOCK
+  !insertmacro MUI_DESCRIPTION_TEXT ${SEC_UNLOCK}  "$(STR_UNLOCK_DESC)"
+!endif
 !insertmacro MUI_FUNCTION_DESCRIPTION_END
 
 ; ==========================================================================

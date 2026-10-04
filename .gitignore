@@ -27,3 +27,19 @@
 # Misc
 Thumbs.db
 Desktop.ini
+
+# .NET (Windows unlock component)
+bin/
+obj/
+*.user
+
+# Android (phone app)
+/android/.gradle/
+/android/build/
+/android/app/build/
+/android/.kotlin/
+/android/local.properties
+*.apk
+*.aab
+*.keystore
+*.jks

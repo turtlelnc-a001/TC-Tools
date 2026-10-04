@@ -1,5 +1,5 @@
 // lang.hpp - 语言键枚举 (Language key enum)
-// TC-tools v0.1.0-rc2
+// TC-tools v0.2.0-rc2
 #pragma once
 
 enum Lk : int {
@@ -127,6 +127,57 @@ enum Lk : int {
   LK_CLI_REASONING,
   LK_CLI_CHAT_NOTE,
   LK_CLI_ASK_QUIT,
+  // ---- unlock (bluetooth phone unlock) : home menu ----
+  LK_M_UNLOCK,
+  LK_M7,
+  // ---- unlock : page ----
+  LK_PU_TITLE,
+  LK_PU_DESC1,
+  LK_PU_DESC2,
+  LK_PU_DESC3,
+  LK_PU_1,
+  LK_PU_2,
+  LK_PU_3,
+  LK_PU_4,
+  LK_PU_5,
+  LK_PU_6,
+  LK_PU_BACK,
+  LK_PU_STATUS,
+  LK_PU_PAIRED,
+  LK_PU_NOT_PAIRED,
+  LK_PU_ADV_ON,
+  LK_PU_ADV_OFF,
+  LK_PU_PWD_SET,
+  LK_PU_PWD_UNSET,
+  LK_PU_HOST,
+  LK_PU_PEER,
+  LK_PU_PSK_OK,
+  LK_PU_PSK_BAD,
+  LK_PU_SVC_RUNNING,
+  LK_PU_SVC_STOPPED,
+  LK_PU_NEED_PAIR,
+  LK_PU_NEED_PWD,
+  LK_PU_PAIR_HEAD,
+  LK_PU_PAIR_NOTE1,
+  LK_PU_PAIR_NOTE2,
+  LK_PU_PAYLOAD,
+  LK_PU_PWD_HEAD,
+  LK_PU_PWD_NOTE,
+  LK_PU_PWD_DONE,
+  LK_PU_PWD_FAIL,
+  LK_PU_RUN_HEAD,
+  LK_PU_RUN_NOTE,
+  LK_PU_FORGET_HEAD,
+  LK_PU_FORGET_CONFIRM,
+  LK_PU_FORGET_DONE,
+  LK_PU_SELFTEST_HEAD,
+  LK_PU_EXE_MISSING,
+  LK_PU_EXE_HINT1,
+  LK_PU_EXE_HINT2,
+  LK_PU_EXE_PATH,
+  LK_PU_CMDOUT,
+  LK_PU_EXITCODE,
+  LK_PU_PHONE_NOTE,
   LK_COUNT
 };
 

@@ -9,7 +9,7 @@ const { print, println, fmt, readLine, kbWait, openUrl, winVerName, buildAtLeast
   findUninstall, userPathAdd, appDir, packagesDir, loadConfig, saveConfig } = core;
 const L = langMod.L;
 
-const APP_VERSION = 'v0.1.0-rc2';
+const APP_VERSION = 'v0.2.0-rc2';
 
 async function readChoice(minC, maxC) {
   for (;;) {

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- iOS 系统色板（深色） -->
+    <color name="ios_blue">#0A84FF</color>
+    <color name="ios_grouped_background">#FF000000</color>
+    <color name="ios_card">#FF1C1C1E</color>
+    <color name="ios_label">#FFFFFFFF</color>
+    <color name="ios_secondary_label">#99EBEBF5</color>
+    <color name="ios_separator">#4A545458</color>
+    <color name="ic_launcher_background">#0A84FF</color>
+    <color name="tc_window_background">#FF000000</color>
+</resources>

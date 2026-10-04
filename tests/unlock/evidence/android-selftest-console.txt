@@ -1,0 +1,58 @@
+== 独立运行 Android 端产品源码回环自测 ==
+java    : C:\Users\吴桥生\Videos\DSHworkarea\TC-tools\..\toolchain\jdk17\jdk-17.0.13+11\bin\java.exe
+sources : 6 个 .kt（只读）
+          LoopbackSelfTest.kt
+          MiniJson.kt
+          Provisioning.kt
+          SealedFrameAssembler.kt
+          SelfTestMain.kt
+          TcProtocol.kt
+classes : C:\Users\吴桥生\AppData\Local\Temp\dsh-verify-tools\android-classes
+
+-- kotlinc 编译 --
+
+-- 运行 SelfTestMainKt --
+== TC-tools Unlock 协议回环自测（Android 端，协议 §8） ==
+PSK   = 000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f
+NONCE = 202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f
+HOST_ID = 3f2a1c9e-4b6d-4f7a-9c11-6c5d3e8f2b01
+PEER_ID = 8a7b6c5d-4e3f-4a2b-9c8d-7e6f5a4b3c2d
+K_session = 21f2a1a3890968e1da28553de67b49cab6ab2ffb7f3ecbaec72d284852b9af47
+[PASS] K_session == 权威值  期望 21f2a1a3890968e1da28553de67b49cab6ab2ffb7f3ecbaec72d284852b9af47
+PROOF     = 353d6fdd6e73a63620389b806711e6c2c726407045d4c7ddae29264a9e8bab10
+[PASS] PROOF == 权威值  期望 353d6fdd6e73a63620389b806711e6c2c726407045d4c7ddae29264a9e8bab10
+[PASS] PROOF 长度 = 32 字节（PROOF 帧即裸 32 字节）
+base64url(PSK) = AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8
+[PASS] base64url(PSK) == 权威值
+[PASS] base64url 不含 '=' 填充
+[PASS] base64url 往返一致
+IV(counter=1) = 000000000000000100000000
+[PASS] IV = 8 字节大端 counter + 4 字节 0x00
+SEALED(K_session,1,"{"type":"unlock"}") = 000000000000000100000000678def935e80e0eeb8ca5a9ee9bbef97f6a2c4302b392deeb76b81f496665496c6
+[PASS] SEALED 整帧 == 权威值
+[PASS] SEALED 长度 = 12 + len(pt) + 16 = 45
+ciphertext = 678def935e80e0eeb8ca5a9ee9bbef97f6
+tag        = a2c4302b392deeb76b81f496665496c6
+[PASS] ciphertext == 权威值
+[PASS] GCM tag == 权威值（密文||tag 顺序）
+[PASS] OPEN(SEAL(...)) 往返明文一致
+[PASS] counter 不匹配时 OPEN 失败（IV 参与认证）
+[PASS] ct||tag 主体长度 = 1+16 = 17
+[PASS] 短明文(1 字节)的 ct||tag 主体可解（MIN_BODY_LEN=17，修正 verify 发现的潜在缺陷）
+[PASS] IV 填充非 0x00 被判非法
+[PASS] 正常帧 IV 填充校验通过
+[PASS] IV 填充非 0 的帧被组装器拒绝（bad-frame）
+[PASS] 密文被篡改时 OPEN 失败（GCM tag 校验）
+[PASS] 分片重组：45B 帧切 3 片后完整解出（counter=1）
+[PASS] 长度前缀分片格式可解出
+[PASS] 重放：counter 未严格递增时被拒
+[PASS] counter 严格递增的消息被接受
+[PASS] 配对二维码文本可解析且往返一致
+[PASS] 非法 pairing 文本被拒（PSK 长度错）
+[PASS] 非法 pairing 文本被拒（产品标识错）
+== 结果：全部通过 ==
+自测 JSON 已写入：C:\Users\吴桥生\Videos\DSHworkarea\TC-tools\tests\unlock\evidence\android-selftest-raw.json
+SELFTEST_RESULT=PASS
+
+SELFTEST exit code = 0 (0=全部通过)
+JSON -> C:\Users\吴桥生\Videos\DSHworkarea\TC-tools\tests\unlock\evidence\android-selftest-raw.json (1057 bytes)

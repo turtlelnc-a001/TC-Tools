@@ -20,7 +20,7 @@ void pageInstallMenu(App& a);
 void pageChecks(App& a);
 void pageCli(App& a);
 void pageWebsite(App& a);
+void pageUnlock(App& a);     // 解锁电脑（蓝牙） - unlock.cpp
 
 // pages.h helpers
-int readChoiceNum(int minC, int maxC, App& a);
 void itemLine(App& a, int no, int label, const char* extra0 = nullptr, const char* extra1 = nullptr);

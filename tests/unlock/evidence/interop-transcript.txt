@@ -1,0 +1,40 @@
+=== 双向互通测试（真实产品代码）===
+java   : C:\Users\吴桥生\Videos\DSHworkarea\toolchain\jdk17\jdk-17.0.13+11\bin\java.exe
+dotnet : C:\Users\吴桥生\Videos\DSHworkarea\TC-tools\..\toolchain\dotnet8\dotnet.exe
+
+-- [1/4] 编译 Android 端产品源码 + InteropMain.kt --
+编译成功（7 个源文件，仅引用产品源码，未修改）
+
+-- [2/4] Android 端 seal(counter=2, kind=ping) --
+EMIT android counter=2 len=43 -> C:\Users\吴桥生\Videos\DSHworkarea\TC-tools\tests\unlock\evidence\interop\android-frame-c2.json
+     seal_hex = 00000000000000020000000067a71afb155bad1bfcb08f2b370991e3787078979e08b28c397a3e9e5fca0a
+
+-- Windows 端 TryOpen(Android 的帧, 期望 counter=2) --
+{
+  "opener": "windows",
+  "input": "android-frame-c2.json",
+  "emitter": "android",
+  "opened": true,
+  "counter": 2,
+  "expected_counter": 2,
+  "counter_ok": true,
+  "plaintext": "{\u0022type\u0022:\u0022ping\u0022}",
+  "error": "",
+  "k_session_self_derived": "21f2a1a3890968e1da28553de67b49cab6ab2ffb7f3ecbaec72d284852b9af47"
+}
+[ok] Windows 端成功解开 Android 端的 counter=2 帧
+
+-- [3/4] Windows 端 Seal(counter=3, kind=bye) --
+EMIT windows counter=3 kind=bye len=42 -> C:\Users\吴桥生\Videos\DSHworkarea\TC-tools\tests\unlock\evidence\interop\windows-frame-c3.json
+     seal_hex = 0000000000000003000000008e2a8cfe1c46190c89324c7e946980eb356a511fa65e4af2dd69a7b2505a
+
+-- Android 端 openWithEmbeddedIv(Windows 的帧, 期望 counter=3) --
+{"opener":"android","input":"windows-frame-c3.json","emitter":"windows","opened":true,"counter":3,"expected_counter":3,"counter_ok":true,"plaintext":"{\"type\":\"bye\"}","error":"","k_session_self_derived":"21f2a1a3890968e1da28553de67b49cab6ab2ffb7f3ecbaec72d284852b9af47"}
+[ok] Android 端成功解开 Windows 端的 counter=3 帧
+
+-- [4/4] 负例：把期望 counter 写成 9，两端都必须拒绝 --
+Windows 期望 counter=9 → exit=1 (应为 1)
+Android 期望 counter=9 → exit=1 (应为 1)
+[ok] 负例被正确拒绝（counter 不匹配不会误判为成功）
+
+=== 双向互通测试：全部通过 ===

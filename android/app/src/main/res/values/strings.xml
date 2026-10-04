@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TC-Tools 解锁电脑</string>
+    <string name="scan_prompt">对准电脑上的配对二维码</string>
+</resources>

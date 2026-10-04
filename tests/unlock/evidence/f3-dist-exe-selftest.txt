@@ -1,0 +1,41 @@
+=== tctool-unlock selftest (protocol 1, no Bluetooth required) ===
+PSK            = 000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f
+NONCE          = 202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f
+HOST_ID        = 3f2a1c9e-4b6d-4f7a-9c11-6c5d3e8f2b01
+PEER_ID        = 8a7b6c5d-4e3f-4a2b-9c8d-7e6f5a4b3c2d
+K_session      = 21f2a1a3890968e1da28553de67b49cab6ab2ffb7f3ecbaec72d284852b9af47
+PROOF          = 353d6fdd6e73a63620389b806711e6c2c726407045d4c7ddae29264a9e8bab10
+psk_base64url  = AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8
+SEAL plaintext = {"type":"unlock"} (counter=1)
+  IV (12B)     = 000000000000000100000000
+  ciphertext   = 678def935e80e0eeb8ca5a9ee9bbef97f6
+  tag (16B)    = a2c4302b392deeb76b81f496665496c6
+  FRAME(45B)   = 000000000000000100000000678def935e80e0eeb8ca5a9ee9bbef97f6a2c4302b392deeb76b81f496665496c6
+
+  [PASS] §8 inputs: PSK 00..1f / NONCE 20..3f / 36-byte ASCII UUIDs
+  [PASS] K_session matches the frozen §8 vector   (21f2a1a3890968e1da28553de67b49cab6ab2ffb7f3ecbaec72d284852b9af47)
+  [PASS] PROOF matches the frozen §8 vector   (353d6fdd6e73a63620389b806711e6c2c726407045d4c7ddae29264a9e8bab10)
+  [PASS] base64url(PSK) matches the frozen vector (43 chars, no padding)   (AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8)
+  [PASS] SEAL(K_session, 1, "{\"type\":\"unlock\"}") matches the frozen 45-byte frame   (000000000000000100000000678def935e80e0eeb8ca5a9ee9bbef97f6a2c4302b392deeb76b81f496665496c6)
+  [PASS] SEAL frame length identity 12 + len(plaintext) + 16   (45 bytes)
+  [PASS] IV layout = counter big-endian (8) || 00000000 (4)
+  [PASS] OPEN round trip returns the original plaintext with counter 1   (counter=1)
+  [PASS] counter replay rejected: counter must be strictly greater than the last accepted one
+  [PASS] counter 2 accepted after counter 1
+  [PASS] tampered GCM tag rejected with decrypt-failed   (decrypt-failed)
+  [PASS] tampered ciphertext rejected with decrypt-failed   (decrypt-failed)
+  [PASS] non-zero IV padding rejected with bad-frame   (bad-frame)
+  [PASS] 28-byte frame rejected with bad-frame   (bad-frame)
+  [PASS] wrong key rejected with decrypt-failed   (decrypt-failed)
+  [PASS] multi-block plaintext (200 bytes, counter 7) round trips   (234 byte frame)
+  [PASS] PROOF with a different PEER_ID does not verify
+  [PASS] FixedTimeEquals accepts identical buffers and rejects different ones
+  [PASS] base64url round trip is byte-exact and padding-free
+  [PASS] §3.1 UUIDs match the frozen protocol constants
+  [PASS] frame constants: MinSealedLength=29, MaxNotifyPayload=180, PROOF=32
+  [PASS] host 'ready' notification fits the §3.2 180-byte notify cap   (61 bytes)
+  [PASS] §3.2: an over-long error message is clamped so the sealed notify frame stays <= 180 bytes   (179 bytes (plaintext 151 <= 152))
+  [PASS] §6 error codes and §3.3.2 reasons are exactly the documented set
+  [PASS] pairing payload encodes to QR and renders to PNG   (version 8 size 49 mask 2)
+
+25/25 checks passed

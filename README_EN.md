@@ -3,7 +3,7 @@
 > A C++ console toolkit for **Windows 10 1709+**: toolchain installer · toolchain checker · built-in lightweight AI CLI
 >
 > TC-Tools (full name **Tclass-Tools**, one of the TC series tools)\n>
-> Current version: **v0.1.0-rc2** ｜ Language: Chinese / English (switchable on the home page; Chinese by default)
+> Current version: **v0.2.0-rc2** ｜ Language: Chinese / English (switchable on the home page; Chinese by default)
 
 TC-tools is a console application built with pure Win32 API (**no third-party libraries**), compiled with MinGW-w64 and
 statically linked — a single portable `tctool.exe`. It integrates **detection / installation / troubleshooting** of common
@@ -19,9 +19,10 @@ developer toolchains into one menu, ships a conversational lightweight LLM CLI, 
 | 1. Toolchain install toolkit | Local install (pre-packaged offline files, fastest) or online install (auto-downloads the newest versions) |
 | 2. Toolchain check & troubleshooting | 17 checks: Node.js / Git / pnpm / MSYS2 / Deepseek Harness / Claude Code / Codex / Edge / Chrome / DEV-C++ / MinGW / Python / IDEs / office software |
 | 3. Built-in lightweight CLI | Connect to LLMs via API Key (DeepSeek / OpenAI / Kimi / GLM / Qwen / SiliconFlow / Volcengine Ark / Ollama / custom); Claude Code-like streaming chat; `/exit` goes back |
-| 4. Switch language | Chinese ⇆ English (default Chinese; choice is persisted) |
-| 5. Visit our website | Opens https://turtleweb.cc.cd |
-| 6. Exit | Quit |
+| 4. Unlock PC (Bluetooth) | **Unlock this PC with your phone's fingerprint**: pairing, password setup, unlock service, status, offline self-test (see below) |
+| 5. Switch language | Chinese ⇆ English (default Chinese; choice is persisted) |
+| 6. Visit our website | Opens https://turtleweb.cc.cd |
+| 7. Exit | Quit |
 
 Every install action will:
 - **Check the OS version** (requires Windows 10 1703 / build 15063 or later);
@@ -43,6 +44,47 @@ tctool          :: run anywhere (same command name as the C++ edition)
 
 - Package: `@turtlelnc/tc-tools` (bin: `tctool`), zero third-party dependencies (Node built-ins only)
 - Details: [node-app/README.md](node-app/README.md)
+
+## Unlock PC with your phone's fingerprint (home page option 4)
+
+> **Phone app name: "TC-Tools 解锁电脑" (TC-Tools Unlock PC)** — Android 8.0+, requires Bluetooth + fingerprint.
+> The PC side is built into TC-tools: home page **4. Unlock PC (Bluetooth)**, executed by `unlock\tctool-unlock.exe`.
+
+**How to use**
+
+1. PC: home → `4 Unlock PC (Bluetooth)` → `2 Set PC unlock password` (your current Windows password);
+2. PC: `1 Pair phone (show QR code)` → generates a one-time key and a QR code;
+3. Phone: install the app → scan the QR code (or paste the pairing text) → paired;
+4. Phone: tap the big button → **fingerprint verified** → an encrypted command is sent over Bluetooth → the PC types
+   your password and unlocks;
+5. PC: to keep the service running, choose `4 Start unlock service (foreground)`.
+
+**What it is / what it is not**
+
+- ✅ The phone performs **one fingerprint check**; the unlock command is only produced after it succeeds.
+  The password itself always stays on the PC.
+- ✅ Every connection uses a fresh random challenge, a one-time session key and a monotonic counter (replay protection);
+- ✅ The pairing key (PSK) travels only through the QR code, **never in plain text over Bluetooth**;
+  the PC password is stored with Windows DPAPI and is never transmitted;
+- ⚠️ Security is enforced at the **application layer** (HMAC-SHA256 authentication + AES-256-GCM), OS-level BLE
+  pairing is not used, so relay-style attacks are not mitigated — avoid leaving the service running in crowded places;
+- ⚠️ Five consecutive failed verifications **immediately invalidate the pairing key** (brute-force protection).
+
+**Important limitation: input injection on the secure desktop**
+
+Windows does **not** accept simulated input from a normal user process on the **UAC/lock-screen secure desktop**:
+
+| Scenario | Behaviour |
+|---|---|
+| PC locked, showing the lock screen (needs a keypress before the password box appears) | ⚠️ You may need to press a key on the PC first, then this tool can type the password |
+| Password box on the **secure desktop** | ❌ A normal-privilege process cannot inject; run `tctool-unlock.exe` as **SYSTEM** (scheduled task/service) — see [tcyunlock/README.md](tcyunlock/README.md) |
+| Session signed in, screen-saver style lock | ✅ Works normally |
+
+> This is a Windows security-model limitation, not a defect. TC-tools detects the desktop before unlocking and reports it.
+
+**Technical details**: the full byte-level protocol (GATT UUIDs, frame layout, crypto primitives, error codes) is in
+[docs/UNLOCK-PROTOCOL.md](docs/UNLOCK-PROTOCOL.md); cross-implementation verification is in
+[docs/UNLOCK-VERIFY.md](docs/UNLOCK-VERIFY.md).
 
 ## System requirements
 

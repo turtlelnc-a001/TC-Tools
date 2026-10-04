@@ -13,7 +13,7 @@ if not exist "%OUT%" mkdir "%OUT%"
 echo [1/2] Compiling ...
 "%GPP%" -std=c++20 -O2 -Wall -Wextra -static -static-libgcc -static-libstdc++ ^
         -finput-charset=UTF-8 -fexec-charset=UTF-8 ^
-        src\main.cpp src\pages.cpp src\tools.cpp src\cli.cpp src\http.cpp src\json.cpp src\util.cpp src\app.cpp src\lang.cpp ^
+        src\main.cpp src\pages.cpp src\tools.cpp src\cli.cpp src\http.cpp src\json.cpp src\util.cpp src\app.cpp src\lang.cpp src\unlock.cpp ^
         -o "%OUT%\tctool.exe" -lwinhttp -lshell32 -luser32 -lversion -ladvapi32
 if errorlevel 1 (
   echo Build FAILED.

@@ -1,0 +1,1 @@
+{"emitter":"android","counter":2,"plaintext":"{\"type\":\"ping\"}","seal_hex":"00000000000000020000000067a71afb155bad1bfcb08f2b370991e3787078979e08b28c397a3e9e5fca0a","iv_hex":"000000000000000200000000","tag_hex":"e3787078979e08b28c397a3e9e5fca0a"}

@@ -1,0 +1,6 @@
+APK: C:\Users\吴桥生\Videos\DSHworkarea\TC-tools\dist\android\TC-Tools-Unlock-0.1.0.apk
+mtime: 10/04/2026 14:41:57
+size: 11556096
+sha256: 71C4DF5E44699186356488179F789422EB024999B9D1B4498F1B00D4ABA71769
+entries: 480+ (see console)
+verified_by: verify (independent, no adb)

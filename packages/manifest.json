@@ -1,6 +1,6 @@
 {
   "app": "TC-tools",
-  "version": "0.1.0-rc2",
+  "version": "0.2.0-rc2",
   "comment": "Offline packages for 'Local install'. Run fetch-packages.ps1 to download all of them. Not installed by default.",
   "packages": [
     {

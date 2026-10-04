@@ -1,0 +1,12 @@
+{
+  "opener": "windows",
+  "input": "android-frame-c2.json",
+  "emitter": "android",
+  "opened": true,
+  "counter": 2,
+  "expected_counter": 2,
+  "counter_ok": true,
+  "plaintext": "{\u0022type\u0022:\u0022ping\u0022}",
+  "error": "",
+  "k_session_self_derived": "21f2a1a3890968e1da28553de67b49cab6ab2ffb7f3ecbaec72d284852b9af47"
+}

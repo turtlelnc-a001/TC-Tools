@@ -1,7 +1,7 @@
 name: publish
 
 # npm Trusted Publishing: 无需任何令牌，GitHub Actions 通过 OIDC 向 npm 换取临时授权。
-# 触发方式: 推送 v* 标签（例如 v0.1.0-rc2 / v1.0.0），或手动触发（workflow_dispatch）。
+# 触发方式: 推送 v* 标签（例如 v0.2.0-rc2 / v1.0.0），或手动触发（workflow_dispatch）。
 
 on:
   push:
@@ -27,12 +27,12 @@ jobs:
       - name: Update npm to latest (OIDC support)
         run: npm install -g npm@latest
 
-      - name: Publish tc-tools (npm trusted publishing)
+      - name: Publish @turtlelnc/tc-tools (npm trusted publishing)
         working-directory: node-app
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          echo "Publishing tc-tools@$VERSION (tag: rc)"
+          echo "Publishing @turtlelnc/tc-tools@$VERSION (tag: rc)"
           npm publish --access public --provenance --tag rc
           npm dist-tag add "@turtlelnc/tc-tools@$VERSION" latest
-          npm view tc-tools versions
-          npm view tc-tools dist-tags
+          npm view @turtlelnc/tc-tools versions
+          npm view @turtlelnc/tc-tools dist-tags

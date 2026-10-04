@@ -17,6 +17,7 @@ add_executable(tctool
   src/util.cpp
   src/app.cpp
   src/lang.cpp
+  src/unlock.cpp
 )
 
 target_compile_options(tctool PRIVATE -O2 -Wall)

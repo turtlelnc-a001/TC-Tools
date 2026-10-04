@@ -3,7 +3,7 @@
 > 一个面向 **Windows 10 1709+** 的 C++ 控制台工具箱：工具链安装 · 工具链检查 · 内置轻量 CLI
 >
 > TC-Tools（全名 **Tclass-Tools**，TC 系列工具之一）\n>
-> 当前版本：**v0.1.0-rc2** ｜ 语言：简体中文 / English（首页切换，默认中文）
+> 当前版本：**v0.2.0-rc2** ｜ 语言：简体中文 / English（首页切换，默认中文）
 
 TC-tools 是一个**不依赖任何第三方库、纯 Win32 API** 的 C++17/20 控制台应用（MinGW-w64 编译，静态链接，单文件 exe 即可运行）。
 它把开发者常用工具链的**检测 / 安装 / 排查**集成到一个菜单里，自带了可对话的大模型轻量 CLI，并完全适配 Windows 10 1709（build 16299）。
@@ -17,9 +17,10 @@ TC-tools 是一个**不依赖任何第三方库、纯 Win32 API** 的 C++17/20 �
 | 1. 工具链安装工具包 | 本地安装（用预先打包好的 packages 离线包，最快）或在线安装（自动下载最新版） |
 | 2. 工具链检查及疑难解答 | 17 项检查：Node.js / Git / pnpm / MSYS2 / Deepseek Harness / Claude Code / Codex / Edge / Chrome / DEV-C++ / MinGW / Python / IDE / 办公软件 等 |
 | 3. 内置轻量 CLI | 通过 API Key 连接大模型（DeepSeek / OpenAI / Kimi / GLM / 通义 / 硅基流动 / 火山方舟 / Ollama / 自定义），类 Claude Code 的流式对话，`/exit` 返回上一页 |
-| 4. 切换语言 | 中文 ⇆ English（默认中文，选择会保存） |
-| 5. 进入我们的网站 | 打开 https://turtleweb.cc.cd |
-| 6. 退出 | 结束程序 |
+| 4. 解锁电脑（蓝牙） | **手机指纹解锁电脑**：配对、设置电脑密码、启动蓝牙解锁服务、查看状态、离线自测（详见下节） |
+| 5. 切换语言 | 中文 ⇆ English（默认中文，选择会保存） |
+| 6. 进入我们的网站 | 打开 https://turtleweb.cc.cd |
+| 7. 退出 | 结束程序 |
 
 所有安装项在安装前都会：
 - **检查系统版本**（要求 Windows 10 1703 / build 15063 以上）；
@@ -42,6 +43,43 @@ tctool          :: 任意目录直接运行（命令名与 C++ 版一致）
 - 包名：`@turtlelnc/tc-tools`（bin：`tctool`），仅依赖 Node 内置模块，无第三方依赖
 - 详见 [node-app/README.md](node-app/README.md)
 
+## 手机指纹蓝牙解锁（首页第 4 项）
+
+> **手机端应用名：「TC-Tools 解锁电脑」**（Android 8.0+，需要蓝牙 + 指纹）
+> 电脑端已并入 TC-tools：首页 **4. 解锁电脑（蓝牙）**，实际执行由 `unlock\tctool-unlock.exe` 完成。
+
+**使用流程**
+
+1. 电脑：首页 → `4 解锁电脑（蓝牙）` → `2 设置电脑解锁密码`（输入即当前登录密码）；
+2. 电脑：`1 配对手机（显示二维码）` → 生成一次性密钥与二维码；
+3. 手机：安装「TC-Tools 解锁电脑」→ 扫码（或手动粘贴配对文本）完成配对；
+4. 手机：点击大按钮 → **指纹验证通过** → 蓝牙发送加密指令 → 电脑自动输入密码解锁；
+5. 电脑：需要常驻服务时选 `4 启动解锁服务（前台常驻）`。
+
+**它是什么 / 不是什么**
+
+- ✅ 手机**只做一次指纹验证**，验证通过才发送解锁指令；密码始终保存在电脑本地；
+- ✅ 每次连接都重新生成随机挑战值，会话密钥一次性、解锁指令带单调计数器（防重放）；
+- ✅ 配对密钥（PSK）只通过二维码传递，**不经过蓝牙明文传输**；电脑密码用 Windows DPAPI 加密保存，从不发送；
+- ⚠️ 蓝牙采用**应用层加密**（HMAC-SHA256 认证 + AES-256-GCM），未启用系统级 BLE 配对，因此不防"信号中继"式攻击——请勿在人员复杂的公共场所长期开启服务；
+- ⚠️ 连续 5 次验证失败会**立即作废配对密钥**，需要重新配对（防暴力破解）。
+
+**重要限制：安全桌面（锁屏界面）上的输入注入**
+
+Windows 的 **UAC 安全桌面 / 锁屏登录界面**不接受普通用户进程的模拟输入。因此：
+
+| 场景 | 行为 |
+|---|---|
+| 电脑已锁屏 → 显示**锁屏界面**（需要点一下/按一下才出现密码框） | ⚠️ 可能需要先在电脑上按任意键唤出密码框，本工具才能注入 |
+| 密码框已出现但工作在**安全桌面** | ❌ 普通权限进程无法注入，需要把 `tctool-unlock.exe` 以 **SYSTEM** 身份常驻（计划任务/服务），详见 [tcyunlock/README.md](tcyunlock/README.md) |
+| 会话已登录、仅"锁定屏幕保护" | ✅ 正常注入 |
+
+> 这一限制由 Windows 安全模型决定，不是程序缺陷。TC-tools 会在执行解锁前检测当前桌面并如实回报状态。
+
+**技术细节**：完整字节级协议（GATT UUID、帧格式、加密原语、错误码）见
+[docs/UNLOCK-PROTOCOL.md](docs/UNLOCK-PROTOCOL.md)；两端一致性与独立校验结果见
+[docs/UNLOCK-VERIFY.md](docs/UNLOCK-VERIFY.md)。
+
 ## 系统要求
 
 - Windows 10 **1703（build 15063）或更高**；已针对 **Windows 10 1709（build 16299）** 做了完整适配（所有命令均为 1709 可用 API，无 Windows Terminal / 新版 PowerShell 依赖，curl 等系统组件不依赖 1803+ 内置版本）
@@ -59,7 +97,17 @@ TC-tools/
 │   ├── http.cpp            # WinHTTP 封装（下载/请求/流式，支持重定向与进度）
 │   ├── json.cpp            # 迷你 JSON 解析/生成（UTF-8）
 │   ├── util.cpp            # 控制台输出/进程/注册表/系统版本等 Win32 封装
-│   └── lang.cpp            # 中英文语言表（约 140 条）
+│   ├── unlock.cpp          # 解锁电脑（蓝牙）：控制台菜单 + 调用解锁组件
+│   └── lang.cpp            # 中英文语言表（约 200 条）
+├── tcyunlock/              # 电脑端蓝牙解锁组件（.NET 8 / C#）
+│   ├── src/                # GATT Server、加密协议、SendInput 注入、二维码
+│   └── dist/               # 发布产物 tctool-unlock.exe（安装包里放到 unlock\）
+├── android/                # 手机端 App「TC-Tools 解锁电脑」（Kotlin + Compose，Apple 风格 UI）
+│   └── app/src/main/java/  # BLE Central、指纹、配对、界面
+├── docs/
+│   ├── UNLOCK-PROTOCOL.md  # 蓝牙解锁协议规范（两端唯一权威契约）
+│   └── UNLOCK-VERIFY.md    # 协议一致性与验收报告
+├── tests/unlock/           # 协议独立参考实现与两端一致性核对
 ├── packages/               # 本地（离线）安装包清单 + 下载脚本
 │   ├── manifest.json       # 本地安装包元数据（文件名/版本/来源 URL）
 │   └── fetch-packages.ps1  # 一条命令把全部离线包下载到 packages/
@@ -68,6 +116,7 @@ TC-tools/
 │   └── build-installer.bat     # 一键生成安装程序
 ├── dist/                   # 构建产物（构建后生成，Git 忽略）
 ├── build.bat               # 一键编译（MinGW g++）
+├── build-all.ps1           # 一键编译主程序 + 打包安装程序（PowerShell）
 ├── CMakeLists.txt          # 备用构建方式
 └── README.md / README_EN.md / LICENSE
 ```
@@ -99,9 +148,12 @@ cmake --build build
 ```bat
 g++ -std=c++20 -O2 -static -static-libgcc -static-libstdc++ ^
     src\main.cpp src\pages.cpp src\tools.cpp src\cli.cpp src\http.cpp ^
-    src\json.cpp src\util.cpp src\app.cpp src\lang.cpp ^
+    src\json.cpp src\util.cpp src\app.cpp src\lang.cpp src\unlock.cpp ^
     -o dist\tctool.exe -lwinhttp -lshell32 -luser32 -lversion -ladvapi32
 ```
+
+> 想一次生成主程序 + 安装程序（自动检测是否打包解锁组件），可直接运行：
+> `powershell -ExecutionPolicy Bypass -File .\build-all.ps1`
 
 ## 使用说明
 

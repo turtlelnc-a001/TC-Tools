@@ -1,0 +1,8 @@
+{
+  "emitter": "windows",
+  "counter": 3,
+  "plaintext": "{\u0022type\u0022:\u0022bye\u0022}",
+  "seal_hex": "0000000000000003000000008e2a8cfe1c46190c89324c7e946980eb356a511fa65e4af2dd69a7b2505a",
+  "iv_hex": "000000000000000300000000",
+  "tag_hex": "80eb356a511fa65e4af2dd69a7b2505a"
+}

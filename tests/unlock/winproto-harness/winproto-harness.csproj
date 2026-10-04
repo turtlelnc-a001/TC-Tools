@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- 验证用隔离宿主（verify/task-4）。
+       通过 <Compile Include> **直接编译产品源码** tcyunlock/src/Protocol.cs，
+       不复制、不修改它 —— 这样跑的就是真实产品代码，而不是重写的等价物。
+       Protocol.cs 无 WinRT 依赖，因此可用纯 net8.0 编译（不需要 Windows SDK 投影）。 -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>winproto-harness</AssemblyName>
+    <RootNamespace>TcUnlock.WinProtoHarness</RootNamespace>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <!-- 产品源码（只读引用） -->
+    <Compile Include="..\..\..\tcyunlock\src\Protocol.cs" />
+  </ItemGroup>
+
+</Project>

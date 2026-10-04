@@ -1,0 +1,41 @@
+{
+  "candidate": "C:\\Users\\吴桥生\\Videos\\DSHworkarea\\TC-tools\\android\\app\\build\\selftest\\vectors-android.json",
+  "allMatch": true,
+  "results": [
+    {
+      "field": "K_session",
+      "status": "MATCH",
+      "where": "$.k_session_hex",
+      "bytes": 32
+    },
+    {
+      "field": "PROOF",
+      "status": "MATCH",
+      "where": "$.proof_hex",
+      "bytes": 32
+    },
+    {
+      "field": "SEAL frame (IV||ct||tag)",
+      "status": "MATCH",
+      "where": "$.seal_hex",
+      "bytes": 45
+    },
+    {
+      "field": "SEAL tag",
+      "status": "MATCH",
+      "where": "$.tag_hex",
+      "bytes": 16
+    },
+    {
+      "field": "SEAL ciphertext",
+      "status": "MATCH",
+      "where": "$.ciphertext_hex",
+      "bytes": 17
+    },
+    {
+      "field": "base64url(PSK)",
+      "status": "MATCH",
+      "where": "$.psk_base64url"
+    }
+  ]
+}
