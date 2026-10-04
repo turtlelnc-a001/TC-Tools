@@ -3,7 +3,8 @@
 - 版本：协议 v1.0（`docs/UNLOCK-PROTOCOL.md`，冻结）
 - 验证人：teammate `verify`（独立于两端实现者）
 - 日期：2026-10-04
-- 结论：**核心密码学、组帧、跨端互通 = 实测通过；宿主与手机端状态机逻辑 = 静态审查通过、运行时未验证（无真机）；Android APK = 未构建验证。**
+- 结论：**协议字节级、跨端互通、两端可编译可运行、交付物自包含、APK 打包、构建清单绑定 = 全部实测通过；真机 BLE 空口 / 真实生物识别 / 真实锁屏注入 / Win10 1709 = 未验证（环境固有限制，非缺陷）。**
+- **交付物：v0.2.0-rc2 冻结版 ｜ 终局复核已完成 → 以 §12 为准**（含全部参与哈希 + 三段式验收口径 + 构建清单核验）
 
 > **校验和警告**：本报告所验证的代码版本见 §9「被验证代码的 SHA256」。产品代码在本报告生成期间仍在被两端作者修改；
 > **任何在此哈希之后发生的改动都会使对应结论失效**，必须重跑 §7 的命令。重跑全套命令约 60 秒。
@@ -275,7 +276,7 @@ powershell -ExecutionPolicy Bypass -File TC-tools\tests\unlock\run-interop.ps1
 | R27 | Android 协议核心可编译运行 | ✅ 实测（双路径） | ① 独立 kotlinc 编译 6 个产品源文件 + 运行 `SelfTestMainKt` → exit 0，比对 MATCH；② mobile 的 `gradle :app:selfTest` 产物比对 6/6 MATCH（§3.2.1） |
 | R28 | Android **整个 app 模块**能编译（BLE/ViewModel/Compose UI） | ✅ 实测（class 产物为证） | `android\app\build\tmp\kotlin-classes\debug\com\tctools\unlock\` 下存在 **110 个 .class**，包分布 `unlock 27 / ble 20 / data 7 / protocol 16 / ui 40` —— 含 BLE 层与 Compose UI，说明 `compileDebugKotlin`（含 Compose 编译器插件）已整体通过。且三份关键 class 的时间戳**均晚于**对应源码（`SealedFrameAssembler` src 14:39:37→class 14:40:12；`BleCentral`/`UnlockViewModel` src 14:36→class 14:38:41），产物与当前源码同步。**"Android UI/BLE 未编译"一项就此消除** |
 | R29 | **§3.3.1（本轮新冻结）IDENT 帧**：36 字节 ASCII 小写 UUID，**必须在 PROOF 之前发送**；Host 必须校验其合法性（恰 36B 且形如小写 UUID），并用**本次连接收到的 IDENT** 计算期望 PROOF，未收到时仅容错回退 `""`；Android 应等 `onCharacteristicWrite` 后再写 PROOF | ✅ 实测 + 静态（两端均已实现，偏差已修） | Android：`BleCentral.kt:423-441` 先写 36B IDENT（`WRITE_TYPE_DEFAULT`）才读 challenge；`:372-373` 的 `onCharacteristicWrite` 才会 complete 被 `runOp`(`:484-488`) await 的 op，满足 §3.3.1 的实践提示；`:425-429` 校验长度 36。Windows：`GattUnlockServer.cs:33`（`IdentLength=36`）、`:317-325` 校验并登记、`:395-410` `LooksLikeUuid` 仅接受小写 hex + 固定位置连字符。候选档位曾多出一档，**已按规范收敛为两档并复测**（见 §5 F7） |
-| R30 | Android **APK 打包**可构建 | ✅ **实测（我独立复核产品本体）** | `dist\android\TC-Tools-Unlock-0.1.0.apk`（**重建后的最终版**，mtime 2026-10-04 14:41:57）：size **11,556,096 B**、SHA256 `71C4DF5E44699186356488179F789422EB024999B9D1B4498F1B00D4ABA71769` —— **与 mobile 声明逐字符一致**。zip 容器合法，**480** 条目，含 `AndroidManifest.xml`(8608B)、`resources.arsc`(147576B)、**8 个 classes*.dex**，native libs 覆盖 `arm64-v8a / armeabi-v7a / x86 / x86_64`（**x86_64 存在 → 模拟器可装**）。`dist\android\vectors-android.json` 与其副本一致，比对 **6/6 MATCH**。⚠️ **注意版本漂移**：lead 早先通报的是 size 11,458,389 / SHA `C66734F8…`，我核验时该值确实成立；**mobile 随后重建了 APK**，当前权威值是上表 11,556,096 / `71C4DF5E…`，旧值已作废。**唯一未独立复核项**：aapt2 的 package/label/minSdk/targetSdk 元数据（`aapt2` 未安装，SDK 只有 cmdline-tools）——引用 mobile 报告，未独立验证 |
+| R30 | Android **APK 打包**可构建（**rc2 终局版**） | ✅ **实测（我独立复核产品本体）** | `dist\android\TC-Tools-Unlock-0.2.0-rc2.apk`（mtime 2026-10-04 14:57:23）：size **11,475,766 B**、SHA256 `12F01A782BB424875F683EF50C48D370D14EC4DA373253B356956E6626B98359` —— **与 lead 声明逐字符一致**。zip 容器合法，**482** 条目，含 `AndroidManifest.xml`、`resources.arsc`、**9 个 classes*.dex**，native libs 覆盖 `arm64-v8a / armeabi-v7a / x86 / x86_64`（**x86_64 存在 → 模拟器可装**）。`dist\android\vectors-android.json`（1,057 B / `D3F34DA3…`）与权威向量比对 **6/6 MATCH**。旧 0.1.0 APK 已从 `dist\android\` 删除（目录现仅 rc2 APK + vectors）。<br>**版本沿革**：0.1.0 →（重建）`11,556,096 / 71C4DF5E…` →（rc2）`11,475,766 / 12F01A78…`；前两者均已作废。<br>**仍未独立复核**：aapt2 元数据（versionCode/versionName/label/sdk 与 `UnlockTileService` 清单条目）—— `aapt2` 至终局时仍未安装（SDK 只有 cmdline-tools），该部分**引用 lead 的 aapt2 输出**，我未独立验证 |
 
 ---
 
@@ -662,5 +663,72 @@ Failed to resolve hostfxr.dll [not found]. Error code: 0x80008083
   3. **逻辑闭环**：即便用户扫到旧二维码，宿主在无 PSK 时 `HandleProofAsync` 直接提前返回（`GattUnlockServer.cs:417-422`：`PROOF received but this host is not paired (no PSK)`），**PROOF 不可能通过** → 不会产生未授权解锁。
   → **结论：最坏后果仅为"用户扫旧码后认证失败、困惑一次"；不构成安全缺陷，无可用密钥材料残留。** 归档为 UX 项。
   **winhost 的建议**（如实记录）：保持 rc2 冻结、该项**不在本轮修**，理由是为一次低频路径的体验问题重建安装包不划算（会触发 exe 哈希变化 → 我重跑 F3/回归 + lead 重打安装包 + C++ 端重新对照哈希）；转为"已文档化、延后到下一次构建"。
-  **待 lead 决策**：若不修 → `2BC9BB1C…` 即 Windows 侧终局哈希；若修 → winhost 重建并主动提供新哈希，我按**新版本**在新哈希上重跑（预计 1 分钟内）。
-- **Android 侧 rc2 APK 仍未产出**（我最后一次核实时 `dist\android\` 仍为 0.1.0）。**终局验收必须等它出现并重验 R30。**
+  **lead 决策（已落地）**：**不重建 rc2 二进制**，该项转为"源码已落地、随下次构建生效"。故 **`2BC9BB1C…` 即 Windows 侧终局哈希**。我已独立核实：`Program.cs` 变化（`B26E8D7E…` → `2C49CFC7…`）但 `dist\tctool-unlock.exe` 与 `selftest-vectors.json` **均未变**（详见 §11.3 的可复现性缺口）。
+- **Android 侧 rc2 APK 已就位** → 见 §12 终局复核。
+
+---
+
+## 12. 终局复核结论（v0.2.0-rc2 冻结版）
+
+> lead 于 2026-10-04 发出冻结信号后执行。**本节为最终结论**，此前各节的个别中间状态以本节为准。
+> 复跑命令与原始输出见 §7、`evidence/`。
+
+### 12.1 终局复跑结果：**全绿**
+
+| # | 检查项 | 命令 | 结果 |
+|---|---|---|---|
+| 1 | 权威向量自检 + 确定性 | `node tests\unlock\ref-vectors.mjs --selftest` | `SELFTEST OK`；`vectors.json` 重生成**字节一致** |
+| 2 | 5 路独立实现交叉 | `crosscheck.py` / `dotnet-crosscheck` / `openssl mac` | Python `ALL MATCH`、.NET `ALL MATCH`、OpenSSL `21F2A1A3…AF47` |
+| 3 | Windows 产品代码 §8 向量 | `dotnet run --project tests\unlock\winproto-harness` + `--compare` | **exit=0（MATCH）** |
+| 4 | Android 产品代码（独立 kotlinc） | `run-android-selftest.ps1` + `--compare` | `SELFTEST_RESULT=PASS`、**exit=0（MATCH）** |
+| 5 | 双向互通 | `run-interop.ps1` | Windows↔Android 互解 counter=2/3 + 反例拒绝 → **全部通过** |
+| 6 | 冻结产物自包含（F3） | 清空 `DOTNET_ROOT`、PATH 无 dotnet 直跑 `dist\tctool-unlock.exe selftest` | **29/29 PASS, exit=0** |
+| 7 | rc2 APK 本体 | size/SHA256/zip/dex/ABI | **与 lead 声明逐字符一致**（§4 R30） |
+| 8 | rc2 自测向量 | `--compare dist\android\vectors-android.json` | **6/6 MATCH, exit=0** |
+
+### 12.2 构建清单已**被验证**（不只是被引用）
+
+`docs/BUILD-MANIFEST-v0.2.0-rc2.md` 声明 `sourceCommit = f7d953b9299b902c220a6fad66492cb0cd8d61f2` 并列出 6 个产物哈希。
+**我独立复算了全部 6 个，逐字符一致**：
+
+| 产物 | 大小 | SHA-256（我复算 = 清单值） |
+|---|---|---|
+| `dist\TCtools-installer-0.2.0-rc2.exe` | 35,183,812 | `70689E3ED284E7E6268D6DD3A33E0ADC0DDDAD7767BCDBF0F4923B570D30FA98` ✅ |
+| `dist\tctool.exe` | 1,161,771 | `EAD0861AE1D9896BA04EE94934D895E7E81E7CC68668A82E508036A04957BC28` ✅ |
+| `dist\android\TC-Tools-Unlock-0.2.0-rc2.apk` | 11,475,766 | `12F01A782BB424875F683EF50C48D370D14EC4DA373253B356956E6626B98359` ✅ |
+| `tcyunlock\dist\tctool-unlock.exe` | 41,483,515 | `2BC9BB1C78398BD2F09F551E11FC15C9D0712373A6F2A1AF9C9D652DB64FF392` ✅ |
+| `tcyunlock\dist\selftest-vectors.json` | 4,258 | `649DF454603A743A13F67F9A9F9CA88AE6C18D0063BEDDC0E5ACF07D1935AFEF` ✅ |
+| `dist\android\vectors-android.json` | 1,057 | `D3F34DA39172FBBF63189FAA10C039DD461E5DD3D6B00FBC200E3808A9A41458` ✅ |
+
+**我提的"源码版本标识"建议已被 lead 采纳并落地为本清单**，§11.3 的"可复现性缺口"现指向该文件。
+**但仍有一条残余缺口（清单自己也写明了，`BUILD-MANIFEST` 第 38-39 行）**：`f7d953b` **仍不能复现** `2BC9BB1C…` 这个解锁组件（它对应更早的源码状态，只能靠 `tcyunlock/README.md §1.4` 对账）。
+→ **建议下一次冻结时，为解锁组件单独给出对应 commit**，彻底闭合该缺口。
+
+### 12.3 最终验收口径（三段式）
+
+**✅ 已验证（可复现、有原始输出）**
+1. **协议字节级**：§8 权威向量由 **5 条独立实现**算出并一致；两端在**各自正式构建链**下产出的自测结果与权威值 **6/6 MATCH**。
+2. **两端互通**：Windows 解 Android 的帧、Android 解 Windows 的帧，含 counter=2/3 与反例拒绝。
+3. **可编译可运行**：宿主 `dotnet build` 0 错误 0 警告；app 模块 110 class（含 ble/ui）；Android 协议核心独立 kotlinc 编译运行。
+4. **交付物自包含**：清空 `DOTNET_ROOT`、PATH 无 dotnet 下 `selftest` **29/29 PASS, exit 0**。
+5. **APK 可构建**：size/SHA256/zip/9 dex/4 ABI 独立复核；`vectors-android.json` 6/6 MATCH。
+6. **APK 可安装可启动 + 磁贴拉起 App**：由 lead 在 Android 14 模拟器实测（`adb install` Success、无 FATAL、磁贴 `click-tile` 拉起 MainActivity）。**verify 未运行 adb，此项为 lead 验证。**
+7. **决策规则可回归**：`UnlockPolicy.cs` 纯函数被 selftest 覆盖（1500ms 边界、第 5 次失效、零按键中止）。
+8. **二维码图像编解码**：verify 独立执行 `verify-qr.py --masks` → **5/5 + 40/40, `RESULT: ALL VERIFIED`, exit 0**。
+9. **自启动默认关闭**：只读实测 `enabled:false, method:"none"`，三处落点均未指向本程序。
+10. **产物 ↔ 源码绑定**：`BUILD-MANIFEST-v0.2.0-rc2.md` 的 6 个哈希**经我全部独立复算一致**。
+
+**❌ 未验证（环境固有限制，非缺陷）**
+1. **真机 BLE 空口链路** —— 无 Android 设备接入；本机适配器存在且宿主可发布，但同机自连返回 `null`；模拟器无真实蓝牙射频。**所有 GATT 空口行为未经真实射频验证。**
+2. **真实生物识别硬件** —— `adb emu finger touch` 只模拟指纹事件。
+3. **真实锁屏安全桌面注入** —— 需真的锁屏并在 Winlogon 安全桌面注入（会破坏交互式会话、涉及真实密码）。
+4. **Windows 10 1709 运行时** —— 本机 Win11 26200；仅确认 TFM/`TargetPlatformMinVersion` 与编译期兼容。
+5. **决策规则到实时 GATT 会话的接线**（R16/R19/R20/R21 后半句）—— 判定函数已实测，接线仍为静态审查。
+6. **自启动的真实生效** —— "默认关闭"已验证；**"重启/登录后是否按时拉起"未验证**（需重启用户机）。
+7. **aapt2 元数据** —— `aapt2` 未安装，引用 lead 输出，未独立验证。
+8. **解锁组件的源码级复现** —— `f7d953b` 不能复现 `2BC9BB1C…`（见 §12.2）。
+
+**⚠️ 版本漂移风险**
+- 本次复核期内，产品代码/产物**至少变动 8 次**：`GattUnlockServer.cs` 4 版、`Program.cs` 3 版（含一项 rc3）、APK 3 版（`C66734F8…` → `71C4DF5E…` → `12F01A78…`）、宿主 exe 2 版（1.0.0 `816C91AA…` → rc2 `2BC9BB1C…`）。`Protocol.cs` 与 §8 权威向量**自始至终未变**。
+- **终局结论绑定下列哈希**（上表 §12.2）。**任何哈希变动都会使对应结论失效**，须重跑 §7。
+- **最有效的防伪机制**：结论跟着哈希走；先查 `BUILD-MANIFEST`，再决定是否需要重跑。

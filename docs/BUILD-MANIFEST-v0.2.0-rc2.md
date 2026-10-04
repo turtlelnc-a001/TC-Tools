@@ -24,7 +24,7 @@
 > `2BC9BB1C…`（电脑端解锁组件）是 **verify 独立复跑的冻结哈希**：
 > 清空 `DOTNET_ROOT`、PATH 无 dotnet 时直接运行该 exe，`selftest` → **29/29 通过，exit 0**。
 
-## ⚠️ 一个必须知道的偏差：源码比二进制新（**有意为之**）
+## ⚠️ 一个必须知道的偏差：源码比二进制新（**有意为之，且逐产物给出对应 commit**）
 
 `tcyunlock\src\Program.cs` 含一项 **rc3 改动**（`forget` 会顺带删除过期的 `payload.txt` / `payload.png`），
 但**没有重建 `dist\tctool-unlock.exe`** —— 因为重建会改变已被 verify 复核并冻结的哈希，
@@ -32,13 +32,19 @@
 
 **后果（请务必知情）**：用当前 `src/` 重新构建，**不会再得到** `2BC9BB1C…`。
 
-因此：
+为此，下表**逐产物**给出可复现它的源码版本：
 
-- **验证产物** → 用上表哈希（冻结产物为准）；
-- **从源码复现** → 必须检出与产物对应的 commit（`f7d953b` 对 rc2 二进制仍不匹配该 exe，
-  该 exe 对应的是**更早的源码状态**；如需逐一复现，请以 `tcyunlock/README.md` §1.4 的记录为准）。
+| 产物 | 可复现它的 commit | 说明 |
+|---|---|---|
+| `tcyunlock\dist\tctool-unlock.exe`（`2BC9BB1C…`） | **`fcce7e4`** | 该组件最后一次真实构建（v0.2.0-rc2、含 autostart）对应的源码状态 |
+| `dist\tctool.exe`（`EAD0861A…`） | **`17047b4`** | 合并 origin/main 后的 C++ 源码（含并行下载 + 解锁菜单） |
+| `dist\TCtools-installer-0.2.0-rc2.exe`（`70689E3E…`） | `17047b4` + `fcce7e4` 的组件产物 | 安装程序本身只是把**上表第 1、2 行**的产物打包 |
+| 手机端 APK（`12F01A78…`） | **`f7d953b`** | 含控制中心磁贴 + realme 适配 |
+| 仓库整体（文档/说明） | **`64b8aa0`**（= 本文档所在 commit） | 文档与报告的最新状态 |
 
-`tcyunlock/README.md` **§1.4「当前版本状态」** 里也单独写明了这一点，供复核者对账。
+> 换句话说：**`fcce7e4` 之后的 `tcyunlock/src/Program.cs` 改动是 rc3 的，不属于 rc2 二进制。**
+> 验证产物用上表哈希；复现产物用上表对应 commit。
+> `tcyunlock/README.md` **§1.4「当前版本状态」**里也有同样的声明，供复核者对账。
 
 ## 生成命令（可复现）
 
