@@ -237,28 +237,82 @@ function fileVersionStr(p) {
 
 // ---------------------------------------------------------------- net --------
 function download(url, filePath, onProgress) {
-  return new Promise((resolve, reject) => {
-    const u = new URL(url);
-    const mod = u.protocol === 'https:' ? https : http;
-    const req = mod.get(u, (res) => {
-      if ([301, 302, 303, 307, 308].indexOf(res.statusCode) >= 0 && res.headers.location) {
+  const tmp = filePath + '.part';
+  const request = (target, headers, redirects = 0) => new Promise((resolve, reject) => {
+    if (redirects >= 8) { reject(new Error('too many redirects')); return; }
+    const u = new URL(target);
+    const mod = u.protocol === 'https:' ? https : u.protocol === 'http:' ? http : null;
+    if (!mod) { reject(new Error('unsupported protocol')); return; }
+    const req = mod.get(u, { headers: Object.assign({ 'Accept-Encoding': 'identity' }, headers) }, (res) => {
+      if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location) {
         res.resume();
-        download(new URL(res.headers.location, url).href, filePath, onProgress).then(resolve, reject);
-        return;
-      }
-      if (res.statusCode !== 200) { res.resume(); reject(new Error('HTTP ' + res.statusCode)); return; }
-      const total = parseInt(res.headers['content-length'] || '0', 10);
-      let got = 0;
-      res.on('data', (ch) => { got += ch.length; if (onProgress) onProgress(got, total); });
-      const ws = fs.createWriteStream(filePath);
-      res.pipe(ws);
-      ws.on('finish', () => resolve(filePath));
-      ws.on('error', reject);
-      res.on('error', reject);
+        request(new URL(res.headers.location, target).href, headers, redirects + 1).then(resolve, reject);
+      } else resolve(res);
     });
     req.on('error', reject);
     req.setTimeout(120000, () => req.destroy(new Error('timeout')));
   });
+  const rangeInfo = (res, start, end) => {
+    const m = /^bytes (\d+)-(\d+)\/(\d+)$/.exec(res.headers['content-range'] || '');
+    if (res.statusCode !== 206 || !m || Number(m[1]) !== start || Number(m[2]) !== end) return 0;
+    const total = Number(m[3]);
+    return Number.isSafeInteger(total) && total > end ? total : 0;
+  };
+  const write = async (start, end, size, progress) => {
+    const res = await request(url, start < 0 ? {} : { Range: `bytes=${start}-${end}` });
+    if (start < 0 ? res.statusCode !== 200 : rangeInfo(res, start, end) !== size) {
+      res.destroy();
+      throw new Error('invalid HTTP range/status: ' + res.statusCode);
+    }
+    const expected = start < 0 ? Number(res.headers['content-length']) : end - start + 1;
+    const file = await fs.promises.open(tmp, 'r+');
+    let offset = start < 0 ? 0 : start;
+    try {
+      for await (const chunk of res) {
+        if (start >= 0 && offset + chunk.length > end + 1) throw new Error('range overflow');
+        let written = 0;
+        while (written < chunk.length) {
+          const result = await file.write(chunk, written, chunk.length - written, offset + written);
+          if (!result.bytesWritten) throw new Error('short write');
+          written += result.bytesWritten;
+        }
+        offset += chunk.length;
+        progress(chunk.length, start < 0 && Number.isSafeInteger(expected) ? expected : size);
+      }
+      if (start >= 0 && offset !== end + 1 ||
+          start < 0 && Number.isSafeInteger(expected) && expected >= 0 && offset !== expected)
+        throw new Error('incomplete download');
+    } finally { res.destroy(); await file.close(); }
+  };
+  return (async () => {
+    let total = 0;
+    try {
+      const probe = await request(url, { Range: 'bytes=0-0' });
+      total = rangeInfo(probe, 0, 0);
+      probe.destroy();
+    } catch (e) { /* try an ordinary GET */ }
+    try {
+      let got = 0;
+      const progress = (n, size) => { got += n; if (onProgress) onProgress(got, size); };
+      if (total >= 8 * 1024 * 1024) {
+        await fs.promises.writeFile(tmp, '');
+        await fs.promises.truncate(tmp, total);
+        const results = await Promise.allSettled(Array.from({ length: 4 }, (_, i) =>
+          write(Math.floor(total * i / 4), Math.floor(total * (i + 1) / 4) - 1, total, progress)));
+        if (results.some((result) => result.status === 'rejected')) {
+          // A CDN can ignore Range on later requests; discard every partial chunk.
+          got = 0;
+          await fs.promises.writeFile(tmp, '');
+          await write(-1, -1, 0, progress);
+        }
+      } else {
+        await fs.promises.writeFile(tmp, '');
+        await write(-1, -1, 0, progress);
+      }
+      await fs.promises.rename(tmp, filePath);
+      return filePath;
+    } catch (e) { await fs.promises.unlink(tmp).catch(() => {}); throw e; }
+  })();
 }
 function postStream(url, headers, body, onChunk) {
   return new Promise((resolve, reject) => {
