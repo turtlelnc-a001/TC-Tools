@@ -106,4 +106,19 @@ tctool-unlock autostart disable    :: 关闭（三种机制一次清理）
 
 - 未做代码签名，Windows SmartScreen 可能提示"未知发布者"（计划申请开源代码签名证书）；
 - 电脑端首次运行需保持蓝牙**已打开**（组件会检测电台状态并在关闭时给出明确提示）；
-- 手机端在没有系统"后台弹出界面"权限的机型上，磁贴点击会先拉起 App 再弹指纹（realme/OPPO/小米等，见 `android/README.md`）。
+- 手机端在没有系统"后台弹出界面"权限的机型上，磁贴点击会先拉起 App 再弹指纹（realme/OPPO/小米等，见 `android/README.md`）；
+- **`forget` 不会清理已导出的二维码文件**（rc2 行为）：`forget` 之后残留的 `payload.txt` / `payload.png` 里是**已作废的 PSK**，
+  用户若再扫旧码只会认证失败一次（**无安全影响**：`host.json` 中已无可用密钥材料，无 PSK 时认证必然失败）。
+  **rc3 起 `forget` 会自动删除这两个文件**（源码已就绪，随下次构建生效）。
+- 自启动的三种机制中，**本机实际生效的是"启动文件夹快捷方式"**（计划任务被 `Access is denied.` 拒绝、
+  `HKCU\...\Run` 在本机会话被安全策略间歇性拦截，二者均已实现但本机无法稳定复现成功）。
+  关闭方式：任务栏右键 → 任务管理器 → **启动应用** → `TC-tools Unlock Service` → 禁用；
+  或 `Win+R` → `shell:startup` → 删除 `TC-tools Unlock Service.lnk`。
+  详见 `tcyunlock/README.md` §13。
+
+## 七、产物 ↔ 源码对应关系
+
+见 [`docs/BUILD-MANIFEST-v0.2.0-rc2.md`](BUILD-MANIFEST-v0.2.0-rc2.md)：
+每个产物的 SHA-256 都绑定到 commit `f7d953b`，并显式说明了
+"`tcyunlock/src/Program.cs` 含 rc3 改动但二进制故意未重建，故用当前源码重建不会再得到冻结哈希"这一偏差 ——
+**验证以冻结产物哈希为准**。
